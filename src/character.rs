@@ -8,6 +8,7 @@ use crate::pronoun::Pronoun;
 pub struct Character {
     name: String,
     pronoun: Pronoun,
+    password: String,
 }
 
 impl Character {
@@ -16,9 +17,11 @@ impl Character {
         unimplemented!()
     }
 
-    pub fn new(name: String, pronoun: Pronoun) -> Character {
-        Character { name, pronoun }
+    pub fn new(name: String, pronoun: Pronoun, password: String) -> Character {
+        Character { name, pronoun, password }
     }
+
+    pub fn password(&self) -> &str {  &self.password }
 
     pub fn name(&self) -> &str {
         &self.name

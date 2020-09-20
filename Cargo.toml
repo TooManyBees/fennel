@@ -7,8 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#generational-arena = "0.2.8"
+generational-arena = "0.2.8"
 telnet = "0.1"
 crossbeam-channel = "0.4"
 log = "0.4"
 femme = "2.1"
+smol = "1.1.0"
