@@ -1,6 +1,7 @@
 use smol::{io, Async, prelude::*};
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crossbeam_channel::Sender;
+use bcrypt::BcryptError;
 
 use crate::character::Character;
 use crate::pronoun::Pronoun;
@@ -10,11 +11,21 @@ pub enum LoginError {
     NoName,
     WrongPassword,
     IO(io::Error),
+    Unknown,
 }
 
 impl From<io::Error> for LoginError {
     fn from(e: io::Error) -> LoginError {
         LoginError::IO(e)
+    }
+}
+
+impl From<BcryptError> for LoginError {
+    fn from(e: BcryptError) -> LoginError {
+        match e {
+            BcryptError::Io(e) => LoginError::IO(e),
+            _ => LoginError::Unknown,
+        }
     }
 }
 
@@ -55,8 +66,7 @@ async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError
 async fn do_character_old(stream: &mut Async<TcpStream>, mut buf: [u8; 160], char: Character) -> Result<Character, LoginError> {
     stream.write_all(b"Password: ").await?;
     let password = read_string(&mut buf, stream, 160, None).await?;
-    // TODO: bcrypt this
-    if char.password() == &password {
+    if bcrypt::verify(char.password(), &password)? {
         Ok(char)
     } else {
         Err(LoginError::WrongPassword)
@@ -70,19 +80,20 @@ async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], nam
     stream.write_all(b"Password: ").await?;
     while password.is_none() {
         let maybe_password = read_string(&mut buf, stream, 160, None).await?;
-        // TODO: bcrypt this
         // TODO: test for whitespace inside password too
         if maybe_password.is_empty() {
             stream.write_all(b"You can't leave your password blank. Password: ").await?;
-        } else {
-            password = Some(maybe_password);
+            continue;
         }
+        let hashed = bcrypt::hash(maybe_password, 4)?;
+        password = Some(hashed);
     }
+    let password = password.unwrap(); // Unwrapped and immutable
 
     stream.write_all(b"Confirm password: ").await?;
     while !password_confirmed {
-        let same_password = Some(read_string(&mut buf, stream, 160, None).await?);
-        password_confirmed = password == same_password;
+        let maybe_same_password = read_string(&mut buf, stream, 160, None).await?;
+        password_confirmed = bcrypt::verify(maybe_same_password, &password)?;
         if !password_confirmed {
             stream.write_all(b"Password doesn't match. Try again: ").await?;
         }
@@ -99,8 +110,9 @@ async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], nam
             _ => stream.write_all(b"That's not an option we know.\r\nPick again: ").await?,
         }
     }
+    let pronoun = pronoun.unwrap_or(Pronoun::They); // Unwrapped and immutable
 
-    Ok(Character::new(name, pronoun.unwrap_or(Pronoun::It), password.unwrap()))
+    Ok(Character::new(name, pronoun, password))
 }
 
 pub fn listen(listener: Async<TcpListener>, sender: Sender<(Connection, Character)>) {
@@ -121,6 +133,7 @@ pub fn listen(listener: Async<TcpListener>, sender: Sender<(Connection, Characte
                                 LoginError::NoName => stream.write_all(b"No name given, bye!").await,
                                 LoginError::WrongPassword => stream.write_all(b"Wrong password, bye!").await,
                                 LoginError::IO(_) => stream.write_all(b"Error encountered, bye!").await,
+                                LoginError::Unknown => stream.write_all(b"Error encountered, bye!").await,
                             };
                             let _ = stream.close().await;
                         }
