@@ -165,6 +165,7 @@ async fn do_character_new(
     }
     let pronoun = pronoun.unwrap_or(Pronoun::They); // Unwrapped and immutable
 
+    log::info!("New character {}", name);
     Ok(Character::new(name, pronoun, password))
 }
 

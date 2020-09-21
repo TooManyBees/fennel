@@ -6,7 +6,7 @@ use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use generational_arena::{Arena, Index};
 use log;
-use std::io::prelude::*;
+use std::io::{prelude::*, ErrorKind};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -42,7 +42,7 @@ impl Connection {
         // FIXME: prevent input overflows; max length should be 256
         let n = self.stream.read(&mut self.in_buffer)?;
         let s = String::from_utf8(self.in_buffer[..n].to_vec())
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
+            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid UTF-8"))?;
         self.input = Some(s);
         Ok(())
     }
@@ -52,31 +52,55 @@ static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
 
 fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io::Result<()> {
-    let mut last_time = Instant::now();
-    let mut connections = Arena::new();
-    let mut characters = Arena::new();
+    let mut last_time: Instant;
+    let mut connections: Arena<Connection> = Arena::new();
+    let mut characters: Arena<Character> = Arena::new();
     let mut mark_for_disconnect = Vec::new();
     loop {
         last_time = Instant::now();
 
         // let in the new connections
         while let Ok((mut conn, char)) = connection_receiver.try_recv() {
-            log::info!("New connection from {} for {}", conn.addr, char.name());
-            // TODO: what if the character is already ingame? Take control of linkdead char,
-            // or boot whoever is currently playing the char and take control from them
-            let char_idx = characters.insert(char);
-            conn.character = Some(char_idx);
+            // FIXME: there must be a better test than a name comparison. Should I use a UUID or something?
+            if let Some((char_index, _)) = characters.iter().find(|(_, c)| c.name() == char.name())
+            {
+                log::info!("Connection regained from {} for {}", conn.addr, char.name());
+                // Take control of the char
+                conn.character = Some(char_index);
+                if let Some((conn_idx, conn)) = connections
+                    .iter_mut()
+                    .find(|(_, conn)| conn.character == Some(char_index))
+                {
+                    log::info!("Connection taken over by {} for {}", conn.addr, char.name());
+                    let _ = conn.write("Disconnected");
+                    connections.remove(conn_idx);
+                }
+            } else {
+                log::info!("New connection from {} for {}", conn.addr, char.name());
+                let char_idx = characters.insert(char);
+                conn.character = Some(char_idx);
+            }
             let _conn_idx = connections.insert(conn);
         }
 
         // handle input
         for (idx, conn) in &mut connections {
             if let Err(e) = conn.read() {
-                if e.kind() != std::io::ErrorKind::WouldBlock {
-                    // TODO: this doesn't need to be a warning
-                    log::warn!("Error reading input from user {:?}", e.kind());
-                    // TODO: marking someone for disconnect because their input was bad is maybe too much
-                    mark_for_disconnect.push(idx);
+                match e.kind() {
+                    ErrorKind::ConnectionAborted => {
+                        let char_name = conn
+                            .character
+                            .and_then(|idx| characters.get(idx))
+                            .map(|ch| ch.name());
+                        log::info!(
+                            "Connection went linkdead: {:?} from {}",
+                            char_name,
+                            conn.addr
+                        );
+                        mark_for_disconnect.push(idx);
+                    }
+                    ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
+                    _ => log::warn!("Unexpected input read error from {}: {}", conn.addr, e),
                 }
             }
             // decrement lag
@@ -87,6 +111,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         for idx in &mark_for_disconnect {
             connections.remove(*idx);
         }
+        mark_for_disconnect.clear();
 
         // update world
 
