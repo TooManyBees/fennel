@@ -24,6 +24,10 @@ respond to telnet control codes. There's a crate for this
 `Send`, so I can't use it yet. I'll handle this later, possibly by pulling some
 of `telnet`'s code right into the repo.
 
+Anyway, thar she blows! 🐳
+
+![A terminal printout showing a new character creation flow, followed by a series of heartbeat messages ("heartbeat for their majesty bees") once the connection gets added to the game loop.](img/login.png)
+
 ### Async or not?
 
 First design decision I had to make was what to do about the event loop.
