@@ -2,8 +2,9 @@
 
 Apparently I'm at the "building a MUD from scratch" stage of quarantine.
 
-This is a learning exercise to write a MUD from scratch. I have the Merc 2.2
-codebase at hand as a rough guide.
+This is a learning exercise to write a MUD engine. I have the Merc 2.2 codebase
+at hand as a rough guide. My Winamp playlist has taken me deep into 1990s Fiona
+Apple. There will never be a better time to start.
 
 ## log::trace!("project thoughts")
 
@@ -27,6 +28,19 @@ of `telnet`'s code right into the repo.
 Anyway, thar she blows! 🐳
 
 ![A terminal printout showing a new character creation flow, followed by a series of heartbeat messages ("heartbeat for their majesty bees") once the connection gets added to the game loop.](img/login.png)
+
+### Do I use linked lists?
+
+The Diku codebase likes intrusive linked lists for everything. I was not a C
+hacker in the early '90s, but I kind of understand the appeal: very easy
+insertions, no need for a contiguous chunk of memory for an array of pointers,
+etc. Lists of characters, objects, mobs, etc. get iterated once per game cycle,
+but for random access the items' pointers are saved prior to insertion.
+
+My 🦀 spider sense 🦀 has me thinking that Rust's borrow checker will have some
+harsh things to say about that idea, and I don't even bother trying to replicate
+Diku's pattern. No, it's gonna be
+[generational-arena](https://crates.io/crates/generational-arena) instead.
 
 ### Async or not?
 
