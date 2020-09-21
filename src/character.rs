@@ -1,10 +1,8 @@
-use std::default::Default;
-use std::fs::File;
-use std::path::Path;
+use serde::{Serialize, Deserialize};
 
 use crate::pronoun::Pronoun;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Character {
     name: String,
     pronoun: Pronoun,
@@ -12,11 +10,6 @@ pub struct Character {
 }
 
 impl Character {
-    pub fn load(name: &str) -> Result<Option<Character>, ()> {
-        let path = Path::new("players").join(Path::new(name));
-        unimplemented!()
-    }
-
     pub fn new(name: String, pronoun: Pronoun, password: String) -> Character {
         Character { name, pronoun, password }
     }

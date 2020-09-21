@@ -3,6 +3,7 @@ name = "fennel"
 version = "0.1.0"
 authors = ["Jess Bees <hi@toomanybees.com>"]
 edition = "2018"
+publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +15,8 @@ log = "0.4"
 femme = "2.1"
 smol = "1.1.0"
 bcrypt = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [dependencies.getrandom]
 features = ["std"] # Prevents a build error on windows. When bcrypt requires getrandom 0.2, this won't be necessary.

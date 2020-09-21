@@ -1,4 +1,6 @@
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Pronoun {
     It,
     He,

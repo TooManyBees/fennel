@@ -1,5 +1,6 @@
-use smol::{io, Async, prelude::*};
-use std::net::{TcpListener, TcpStream, SocketAddr};
+use smol::{io, fs, Async, prelude::*};
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
 use crossbeam_channel::Sender;
 use bcrypt::BcryptError;
 
@@ -7,11 +8,13 @@ use crate::character::Character;
 use crate::pronoun::Pronoun;
 use crate::Connection;
 
+#[derive(Debug)]
 pub enum LoginError {
     NoName,
     WrongPassword,
     IO(io::Error),
-    Unknown,
+    LoadError(LoadError),
+    Bcrypt(BcryptError),
 }
 
 impl From<io::Error> for LoginError {
@@ -24,9 +27,21 @@ impl From<BcryptError> for LoginError {
     fn from(e: BcryptError) -> LoginError {
         match e {
             BcryptError::Io(e) => LoginError::IO(e),
-            _ => LoginError::Unknown,
+            _ => LoginError::Bcrypt(e),
         }
     }
+}
+
+impl From<LoadError> for LoginError {
+    fn from(e: LoadError) -> LoginError {
+        LoginError::LoadError(e)
+    }
+}
+
+#[derive(Debug)]
+pub enum LoadError {
+    IO(io::Error, String),
+    Unparsable(String),
 }
 
 async fn read_string(buf: &mut [u8], stream: &mut Async<TcpStream>, max_len: usize, timeout: Option<usize>) -> Result<String, io::Error> {
@@ -42,8 +57,18 @@ async fn read_string(buf: &mut [u8], stream: &mut Async<TcpStream>, max_len: usi
     Ok(string)
 }
 
-async fn load_old_character(name: &str) -> Option<Character> {
-    None
+async fn load_old_character(name: &str) -> Result<Option<Character>, LoadError> {
+    // FIXME: do this on a SEPARATE thread with its own async reactor dedicated to loading/saving files
+    let pfile_path = Path::new("players").join(name).with_extension("json");
+    match fs::File::open(pfile_path).await {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(LoadError::IO(e, name.to_string())),
+        Ok(mut f) => {
+            let mut v = Vec::new();
+            f.read_to_end(&mut v).await.map_err(|e| LoadError::IO(e, name.to_string()))?;
+            Ok(Some(serde_json::de::from_slice(&v).map_err(|_| LoadError::Unparsable(name.to_string()))?))
+        }
+    }
 }
 
 async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError> {
@@ -57,7 +82,7 @@ async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError
     // TODO: if denied_name? Err(loginError)
     // TODO: if forbidden_name? Err(loginError)
 
-    return match load_old_character(&name).await {
+    return match load_old_character(&name).await? {
         Some(old_character) => do_character_old(stream, buf, old_character).await,
         None => do_character_new(stream, buf, name).await,
     }
@@ -66,7 +91,7 @@ async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError
 async fn do_character_old(stream: &mut Async<TcpStream>, mut buf: [u8; 160], char: Character) -> Result<Character, LoginError> {
     stream.write_all(b"Password: ").await?;
     let password = read_string(&mut buf, stream, 160, None).await?;
-    if bcrypt::verify(char.password(), &password)? {
+    if bcrypt::verify(&password, &char.password())? {
         Ok(char)
     } else {
         Err(LoginError::WrongPassword)
@@ -125,6 +150,10 @@ pub fn listen(listener: Async<TcpListener>, sender: Sender<(Connection, Characte
                         Ok(char) => {
                             if let Ok(stream) = stream.into_inner() {
                                 let connection = Connection::new(stream, addr);
+                                // FIXME: sender is a regular crossbeam-channel, not an async channel
+                                // is sender.send (potentially blocking) a bad move inside an async
+                                // block? Docs for `thread::sleep` say not to use it inside an async
+                                // block; maybe this is the same.
                                 let _ = sender.send((connection, char));
                             }
                         }
@@ -133,7 +162,18 @@ pub fn listen(listener: Async<TcpListener>, sender: Sender<(Connection, Characte
                                 LoginError::NoName => stream.write_all(b"No name given, bye!").await,
                                 LoginError::WrongPassword => stream.write_all(b"Wrong password, bye!").await,
                                 LoginError::IO(_) => stream.write_all(b"Error encountered, bye!").await,
-                                LoginError::Unknown => stream.write_all(b"Error encountered, bye!").await,
+                                LoginError::LoadError(LoadError::Unparsable(name)) => {
+                                    log::error!("Error loading pfile {}: unparsable", name);
+                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.").await
+                                }
+                                LoginError::LoadError(LoadError::IO(e, name)) => {
+                                    log::error!("Error loading pfile {}: {}", name, e);
+                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.").await
+                                }
+                                LoginError::Bcrypt(e) => {
+                                    log::error!("Error verifying password {}", e);
+                                    stream.write_all(b"Error encountered, bye!").await
+                                },
                             };
                             let _ = stream.close().await;
                         }

@@ -61,6 +61,9 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
 
         // let in the new connections
         while let Ok((mut conn, char)) = connection_receiver.try_recv() {
+            log::info!("New connection from {} for {}", conn.addr, char.name());
+            // TODO: what if the character is already ingame? Take control of linkdead char,
+            // or boot whoever is currently playing the char and take control from them
             let char_idx = characters.insert(char);
             conn.character = Some(char_idx);
             let _conn_idx = connections.insert(conn);
@@ -72,6 +75,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                 if e.kind() != std::io::ErrorKind::WouldBlock {
                     // TODO: this doesn't need to be a warning
                     log::warn!("Error reading input from user {:?}", e.kind());
+                    // TODO: marking someone for disconnect because their input was bad is maybe too much
                     mark_for_disconnect.push(idx);
                 }
             }
@@ -113,7 +117,7 @@ fn main() -> std::io::Result<()> {
     let (login_queue_sender, login_queue_receiver) = bounded(20);
     thread::Builder::new().name("listen & login".to_string()).spawn(move || {
         listener::listen(listener, login_queue_sender);
-    });
+    })?;
     game_loop(login_queue_receiver)?;
 
     Ok(())
