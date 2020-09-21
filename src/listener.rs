@@ -1,8 +1,8 @@
-use smol::{io, fs, Async, prelude::*};
+use bcrypt::BcryptError;
+use crossbeam_channel::Sender;
+use smol::{fs, io, prelude::*, Async};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
-use crossbeam_channel::Sender;
-use bcrypt::BcryptError;
 
 use crate::character::Character;
 use crate::pronoun::Pronoun;
@@ -44,7 +44,12 @@ pub enum LoadError {
     Unparsable(String),
 }
 
-async fn read_string(buf: &mut [u8], stream: &mut Async<TcpStream>, max_len: usize, timeout: Option<usize>) -> Result<String, io::Error> {
+async fn read_string(
+    buf: &mut [u8],
+    stream: &mut Async<TcpStream>,
+    max_len: usize,
+    timeout: Option<usize>,
+) -> Result<String, io::Error> {
     let bytes_read = stream.read(buf).await?;
     if bytes_read == 0 {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "Read 0 bytes"));
@@ -65,8 +70,13 @@ async fn load_old_character(name: &str) -> Result<Option<Character>, LoadError> 
         Err(e) => Err(LoadError::IO(e, name.to_string())),
         Ok(mut f) => {
             let mut v = Vec::new();
-            f.read_to_end(&mut v).await.map_err(|e| LoadError::IO(e, name.to_string()))?;
-            Ok(Some(serde_json::de::from_slice(&v).map_err(|_| LoadError::Unparsable(name.to_string()))?))
+            f.read_to_end(&mut v)
+                .await
+                .map_err(|e| LoadError::IO(e, name.to_string()))?;
+            Ok(Some(
+                serde_json::de::from_slice(&v)
+                    .map_err(|_| LoadError::Unparsable(name.to_string()))?,
+            ))
         }
     }
 }
@@ -85,10 +95,14 @@ async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError
     return match load_old_character(&name).await? {
         Some(old_character) => do_character_old(stream, buf, old_character).await,
         None => do_character_new(stream, buf, name).await,
-    }
+    };
 }
 
-async fn do_character_old(stream: &mut Async<TcpStream>, mut buf: [u8; 160], char: Character) -> Result<Character, LoginError> {
+async fn do_character_old(
+    stream: &mut Async<TcpStream>,
+    mut buf: [u8; 160],
+    char: Character,
+) -> Result<Character, LoginError> {
     stream.write_all(b"Password: ").await?;
     let password = read_string(&mut buf, stream, 160, None).await?;
     if bcrypt::verify(&password, &char.password())? {
@@ -98,7 +112,11 @@ async fn do_character_old(stream: &mut Async<TcpStream>, mut buf: [u8; 160], cha
     }
 }
 
-async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], name: String) -> Result<Character, LoginError> {
+async fn do_character_new(
+    stream: &mut Async<TcpStream>,
+    mut buf: [u8; 160],
+    name: String,
+) -> Result<Character, LoginError> {
     let mut password = None;
     let mut password_confirmed = false;
     let mut pronoun = None;
@@ -107,7 +125,9 @@ async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], nam
         let maybe_password = read_string(&mut buf, stream, 160, None).await?;
         // TODO: test for whitespace inside password too
         if maybe_password.is_empty() {
-            stream.write_all(b"You can't leave your password blank. Password: ").await?;
+            stream
+                .write_all(b"You can't leave your password blank. Password: ")
+                .await?;
             continue;
         }
         let hashed = bcrypt::hash(maybe_password, 4)?;
@@ -120,11 +140,15 @@ async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], nam
         let maybe_same_password = read_string(&mut buf, stream, 160, None).await?;
         password_confirmed = bcrypt::verify(maybe_same_password, &password)?;
         if !password_confirmed {
-            stream.write_all(b"Password doesn't match. Try again: ").await?;
+            stream
+                .write_all(b"Password doesn't match. Try again: ")
+                .await?;
         }
     }
 
-    stream.write_all(b"How do we refer to you (it/he/she/they)?").await?;
+    stream
+        .write_all(b"How do we refer to you (it/he/she/they)?")
+        .await?;
     while pronoun.is_none() {
         let maybe_pronoun = read_string(&mut buf, stream, 32, None).await?;
         match maybe_pronoun.to_ascii_lowercase().as_str() {
@@ -132,7 +156,11 @@ async fn do_character_new(stream: &mut Async<TcpStream>, mut buf: [u8; 160], nam
             "he" => pronoun = Some(Pronoun::He),
             "she" => pronoun = Some(Pronoun::She),
             "they" => pronoun = Some(Pronoun::They),
-            _ => stream.write_all(b"That's not an option we know.\r\nPick again: ").await?,
+            _ => {
+                stream
+                    .write_all(b"That's not an option we know.\r\nPick again: ")
+                    .await?
+            }
         }
     }
     let pronoun = pronoun.unwrap_or(Pronoun::They); // Unwrapped and immutable

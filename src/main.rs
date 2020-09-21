@@ -1,15 +1,15 @@
 mod character;
-mod pronoun;
 mod listener;
+mod pronoun;
 
-use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::time::{Instant, Duration};
-use std::thread;
 use crossbeam_channel::{bounded, Receiver};
-use log;
 use femme::{self, LevelFilter};
 use generational_arena::{Arena, Index};
+use log;
+use std::io::prelude::*;
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use character::Character;
 
@@ -93,7 +93,11 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         // handle output
         for (_idx, conn) in &mut connections {
             if let Some(character) = conn.character.and_then(|idx| characters.get(idx)) {
-                let pulse_output = format!("heartbeat for {} majesty {}", character.pronoun().possessive(), character.name());
+                let pulse_output = format!(
+                    "heartbeat for {} majesty {}",
+                    character.pronoun().possessive(),
+                    character.name()
+                );
                 let _ = conn.stream.write(pulse_output.as_bytes());
             }
         }
@@ -115,9 +119,11 @@ fn main() -> std::io::Result<()> {
     log::info!("Listening on port {}", port);
 
     let (login_queue_sender, login_queue_receiver) = bounded(20);
-    thread::Builder::new().name("listen & login".to_string()).spawn(move || {
-        listener::listen(listener, login_queue_sender);
-    })?;
+    thread::Builder::new()
+        .name("listen & login".to_string())
+        .spawn(move || {
+            listener::listen(listener, login_queue_sender);
+        })?;
     game_loop(login_queue_receiver)?;
 
     Ok(())
