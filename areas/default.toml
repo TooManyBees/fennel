@@ -9,6 +9,9 @@ The room is draped in a soft, dark fabric, but
 you can see the glow of moonlight seeping through
 the folds.
 '''
+exits = [
+    { dir = "north", to = 2 }
+]
 
 [[rooms]]
 id = 2
@@ -18,6 +21,10 @@ The room is hard, flat marble. Bare on all sides.
 You can't tell where the light is coming from.
 Maddening.
 '''
+exits = [
+    { dir = "south", to = 1 },
+    { dir = "north", to = 3 },
+]
 
 [[rooms]]
 id = 3
@@ -27,3 +34,6 @@ You're in a cozy study with a crackling fireplace.
 A wall of bookcases promises to distract you from
 the dreadful weather outside.
 '''
+exits = [
+    { dir = "south", to = 2 }
+]

@@ -12,6 +12,14 @@ pub struct AreaDef {
     pub rooms: Vec<RoomDef>,
 }
 
+impl AreaDef {
+    pub fn extract_rooms(&mut self) -> Vec<RoomDef> {
+        let mut rooms = vec![];
+        std::mem::swap(&mut rooms, &mut self.rooms);
+        rooms
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Area {
     name: String,

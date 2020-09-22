@@ -13,6 +13,34 @@ use fennel::{listen, Area, Character, Connection, Room, RoomId};
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
 
+fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
+    // I should be able to do this in a single iteration of room.values_mut(),
+    // and I'm angry that I can't.
+    let mut destinations_to_remove = vec![];
+    for room in rooms.values() {
+        for exit in &room.exits {
+            if !rooms.contains_key(&exit.to) {
+                destinations_to_remove.push(exit.to)
+            }
+        }
+    }
+    if !destinations_to_remove.is_empty() {
+        for room in rooms.values_mut() {
+            for (n, exit) in room.exits.clone().into_iter().enumerate() {
+                if destinations_to_remove.contains(&exit.to) {
+                    log::warn!(
+                        "Loading areas: removed room {}'s exit '{}' to nonexistant {}",
+                        room.id,
+                        &exit.dir,
+                        &exit.to
+                    );
+                    room.exits.swap_remove(n);
+                }
+            }
+        }
+    }
+}
+
 fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
@@ -21,8 +49,7 @@ fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
         Ok(mut area_def) => {
-            let mut room_defs = Vec::new();
-            std::mem::swap(&mut room_defs, &mut area_def.rooms);
+            let room_defs = area_def.extract_rooms();
 
             let area = Area::from_prototype(area_def);
             let area_idx = areas.len();
@@ -35,6 +62,8 @@ fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
                 rooms.insert(room.id, room);
                 area.rooms.push(room_idx);
             }
+
+            audit_room_exits(&mut rooms);
         }
         Err(e) => log::error!("Error loading area {:?}", e),
     }
