@@ -103,3 +103,7 @@ that bridge when I come to it.
 It's so hard not to get sidetracked with all the things I want to implement.
 Sometimes just writing down the TODOs when and where you spot them is better
 than just DOing them, I think.
+
+### Every time, I'm telling ya
+
+![A git diff, showing a mistakenly negated conditional ("if now > next_pulse" when it should have been "<") that caused the game loop to run as fast as possible](img/lol-arithmetic.png)
