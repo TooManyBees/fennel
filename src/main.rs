@@ -1,52 +1,13 @@
-mod character;
-mod listener;
-mod pronoun;
-
 use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
-use generational_arena::{Arena, Index};
+use generational_arena::Arena;
 use log;
-use std::io::{prelude::*, ErrorKind};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::io::ErrorKind;
+use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use character::Character;
-
-pub struct Connection {
-    stream: TcpStream,
-    addr: SocketAddr,
-    character: Option<Index>,
-    in_buffer: [u8; 256],
-    input: Option<String>, // TODO: do this better
-    output: Option<String>,
-}
-
-impl Connection {
-    pub fn new(stream: TcpStream, addr: SocketAddr) -> Connection {
-        Connection {
-            stream,
-            addr,
-            character: None,
-            in_buffer: [0; 256],
-            input: None,
-            output: None,
-        }
-    }
-
-    pub fn write(&mut self, message: &str) -> std::io::Result<()> {
-        self.stream.write_all(message.as_bytes())
-    }
-
-    pub fn read(&mut self) -> std::io::Result<()> {
-        // FIXME: prevent input overflows; max length should be 256
-        let n = self.stream.read(&mut self.in_buffer)?;
-        let s = String::from_utf8(self.in_buffer[..n].to_vec())
-            .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid UTF-8"))?;
-        self.input = Some(s);
-        Ok(())
-    }
-}
+use fennel::{listen, Character, Connection};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -64,19 +25,27 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
             // FIXME: there must be a better test than a name comparison. Should I use a UUID or something?
             if let Some((char_index, _)) = characters.iter().find(|(_, c)| c.name() == char.name())
             {
-                log::info!("Connection regained from {} for {}", conn.addr, char.name());
+                log::info!(
+                    "Connection regained from {} for {}",
+                    conn.addr(),
+                    char.name()
+                );
                 // Take control of the char
                 conn.character = Some(char_index);
                 if let Some((conn_idx, conn)) = connections
                     .iter_mut()
                     .find(|(_, conn)| conn.character == Some(char_index))
                 {
-                    log::info!("Connection taken over by {} for {}", conn.addr, char.name());
+                    log::info!(
+                        "Connection taken over by {} for {}",
+                        conn.addr(),
+                        char.name()
+                    );
                     let _ = conn.write("Disconnected");
                     connections.remove(conn_idx);
                 }
             } else {
-                log::info!("New connection from {} for {}", conn.addr, char.name());
+                log::info!("New connection from {} for {}", conn.addr(), char.name());
                 let char_idx = characters.insert(char);
                 conn.character = Some(char_idx);
             }
@@ -95,12 +64,12 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                         log::info!(
                             "Connection went linkdead: {:?} from {}",
                             char_name,
-                            conn.addr
+                            conn.addr()
                         );
                         mark_for_disconnect.push(idx);
                     }
                     ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
-                    _ => log::warn!("Unexpected input read error from {}: {}", conn.addr, e),
+                    _ => log::warn!("Unexpected input read error from {}: {}", conn.addr(), e),
                 }
             }
             // decrement lag
@@ -123,7 +92,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                     character.pronoun().possessive(),
                     character.name()
                 );
-                let _ = conn.stream.write(pulse_output.as_bytes());
+                let _ = conn.write(&pulse_output);
             }
         }
 
@@ -147,7 +116,7 @@ fn main() -> std::io::Result<()> {
     thread::Builder::new()
         .name("listen & login".to_string())
         .spawn(move || {
-            listener::listen(listener, login_queue_sender);
+            listen(listener, login_queue_sender);
         })?;
     game_loop(login_queue_receiver)?;
 
