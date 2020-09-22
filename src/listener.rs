@@ -73,10 +73,10 @@ async fn load_old_character(name: &str) -> Result<Option<Character>, LoadError> 
             f.read_to_end(&mut v)
                 .await
                 .map_err(|e| LoadError::IO(e, name.to_string()))?;
-            Ok(Some(
-                serde_json::de::from_slice(&v)
-                    .map_err(|_| LoadError::Unparsable(name.to_string()))?,
-            ))
+            Ok(Some(serde_json::de::from_slice(&v).map_err(|e| {
+                log::error!("Load error {}", e);
+                LoadError::Unparsable(name.to_string())
+            })?))
         }
     }
 }

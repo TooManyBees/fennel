@@ -13,8 +13,10 @@ use fennel::{listen, Area, Character, Connection, Room, RoomId};
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
 
-fn load_areas(rooms: &mut HashMap<RoomId, Room>, areas: &mut Vec<Area>) {
+fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
     log::info!("Loading areas");
+    let mut areas = Vec::new();
+    let mut rooms = HashMap::new();
     // FIXME: daaaaaaang this is ugly
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
@@ -37,17 +39,25 @@ fn load_areas(rooms: &mut HashMap<RoomId, Room>, areas: &mut Vec<Area>) {
         Err(e) => log::error!("Error loading area {:?}", e),
     }
     log::info!("Loading areas: success");
+    (areas, rooms)
+}
+
+fn do_look(conn: &mut Connection, characters: &Arena<Character>, rooms: &HashMap<RoomId, Room>) {
+    if let Some(char) = conn.character.and_then(|idx| characters.get(idx)) {
+        let room = rooms.get(&char.in_room).unwrap(); // FIXME: don't unwrap
+        let _ = conn.write(&room.name);
+        let _ = conn.write(&room.description);
+        let _ = conn.write("");
+    }
 }
 
 fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io::Result<()> {
     let mut last_time: Instant;
     let mut connections: Arena<Connection> = Arena::new();
     let mut characters: Arena<Character> = Arena::new();
-    let mut areas = Vec::new();
-    let mut rooms = HashMap::new();
     let mut mark_for_disconnect = Vec::new();
 
-    load_areas(&mut rooms, &mut areas);
+    let (areas, rooms) = load_areas();
 
     println!("{:?}\n\n{:?}", areas, rooms);
 
@@ -76,6 +86,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                         char.name()
                     );
                     let _ = conn.write("Disconnected");
+                    let _ = conn.write_flush();
                     connections.remove(conn_idx);
                 }
             } else {
@@ -83,6 +94,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                 let char_idx = characters.insert(char);
                 conn.character = Some(char_idx);
             }
+            do_look(&mut conn, &characters, &rooms);
             let _conn_idx = connections.insert(conn);
         }
 
@@ -90,7 +102,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         for (idx, conn) in &mut connections {
             if let Err(e) = conn.read() {
                 match e.kind() {
-                    ErrorKind::ConnectionAborted => {
+                    ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
                         let char_name = conn
                             .character
                             .and_then(|idx| characters.get(idx))
@@ -103,7 +115,12 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                         mark_for_disconnect.push(idx);
                     }
                     ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
-                    _ => log::warn!("Unexpected input read error from {}: {}", conn.addr(), e),
+                    _ => log::warn!(
+                        "Unexpected input read error from {}: {:?} {}",
+                        conn.addr(),
+                        e.kind(),
+                        e
+                    ),
                 }
             }
             // decrement lag
@@ -117,8 +134,6 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         mark_for_disconnect.clear();
 
         // update world
-
-        // handle output
         for (_idx, conn) in &mut connections {
             if let Some(character) = conn.character.and_then(|idx| characters.get(idx)) {
                 let pulse_output = format!(
@@ -128,6 +143,11 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
                 );
                 let _ = conn.write(&pulse_output);
             }
+        }
+
+        // handle output
+        for (_idx, conn) in &mut connections {
+            let _ = conn.write_flush();
         }
 
         let now = Instant::now();

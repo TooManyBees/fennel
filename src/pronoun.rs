@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::default::Default;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Pronoun {
@@ -6,6 +7,12 @@ pub enum Pronoun {
     He,
     She,
     They,
+}
+
+impl Default for Pronoun {
+    fn default() -> Pronoun {
+        Pronoun::They
+    }
 }
 
 impl Pronoun {

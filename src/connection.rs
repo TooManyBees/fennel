@@ -1,5 +1,5 @@
 use generational_arena::Index;
-use std::io::{prelude::*, ErrorKind};
+use std::io::{prelude::*, ErrorKind, Write};
 use std::net::{SocketAddr, TcpStream};
 
 pub struct Connection {
@@ -8,7 +8,7 @@ pub struct Connection {
     pub character: Option<Index>,
     in_buffer: [u8; 256],
     input: Option<String>, // TODO: do this better
-    output: Option<String>,
+    output: Vec<u8>,
 }
 
 impl Connection {
@@ -19,7 +19,7 @@ impl Connection {
             character: None,
             in_buffer: [0; 256],
             input: None,
-            output: None,
+            output: Vec::with_capacity(500),
         }
     }
 
@@ -28,7 +28,15 @@ impl Connection {
     }
 
     pub fn write(&mut self, message: &str) -> std::io::Result<()> {
-        self.stream.write_all(message.as_bytes())
+        write!(&mut self.output, "{}\r\n", message)
+    }
+
+    pub fn write_flush(&mut self) -> std::io::Result<()> {
+        if !self.output.is_empty() {
+            self.stream.write_all(&self.output)?;
+            self.output.clear(); // TODO: find a way to shrink capacity down to 500 if poss?
+        }
+        Ok(())
     }
 
     pub fn read(&mut self) -> std::io::Result<()> {

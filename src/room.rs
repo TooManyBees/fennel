@@ -3,7 +3,14 @@ use std::default::Default;
 use std::fs::File;
 use std::io::Read;
 
-pub type RoomId = u32;
+#[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
+pub struct RoomId(u32);
+
+impl Default for RoomId {
+    fn default() -> RoomId {
+        RoomId(1)
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RoomDef {
@@ -19,9 +26,9 @@ pub struct RoomDef {
 #[derive(Debug, Default)]
 pub struct Room {
     pub id: RoomId,
-    name: String,
-    description: String,
-    area: usize,
+    pub name: String,
+    pub description: String,
+    pub area: usize,
     // flags
     // sector type
     // exits

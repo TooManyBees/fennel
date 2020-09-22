@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
+use std::default::Default;
 
 use crate::pronoun::Pronoun;
+use crate::room::RoomId;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Character {
     name: String,
     pronoun: Pronoun,
     password: String,
+    #[serde(default)]
+    pub in_room: RoomId,
 }
 
 impl Character {
@@ -15,6 +19,8 @@ impl Character {
             name,
             pronoun,
             password,
+            // connection: None
+            ..Default::default()
         }
     }
 
