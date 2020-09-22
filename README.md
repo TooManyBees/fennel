@@ -84,7 +84,22 @@ learning-exercise-just-get-it-to-work phase, is less "hack-n-slash" and more
 other's throats", and as such I'm **highly tempted** to roll with *DykuMUD*.
 
 But I also don't want to leave the queer boys feeling unwelcome! That would be
-extremely *not my brand*, and besides, **the smoldering look of defiance from your
-bested lover-to-enemy as your sword draws a single bead of blood from their
-collar knows no gender**. So I gift the name *DykuMUD* to you, the Internet, free of
-charge, in the hopes that something utterly unwholesome is made with it.
+extremely *not my brand*, and besides, **the smoldering look of defiance from
+your bested lover-to-enemy as your sword draws a single bead of blood from their
+collar knows no gender**. So I gift the name *DykuMUD* to you, the Internet,
+free of charge, in the hopes that something utterly unwholesome is made with it.
+
+### Do I really use linked lists?
+
+*\*reads more about the
+[intrusive-collections](https://crates.io/crates/intrusive-collections) crate\**
+oh wow, maybe I should use this. It removes the need for a "mark item for
+removal" phase followed by a separate removal phase because an arena still won't
+let me remove items in it while iterating over it. 🤔 Baby steps. I'll cross
+that bridge when I come to it.
+
+### Staying on track
+
+It's so hard not to get sidetracked with all the things I want to implement.
+Sometimes just writing down the TODOs when and where you spot them is better
+than just DOing them, I think.
