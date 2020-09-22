@@ -152,7 +152,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
 
         let now = Instant::now();
         let next_pulse = last_time + Duration::new(0, PULSE_RATE_NS);
-        let sleep_for = if now > next_pulse {
+        let sleep_for = if now < next_pulse {
             next_pulse - now
         } else {
             Duration::new(0, 0)
