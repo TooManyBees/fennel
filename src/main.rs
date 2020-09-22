@@ -2,21 +2,55 @@ use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use generational_arena::Arena;
 use log;
+use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fennel::{listen, Character, Connection};
+use fennel::{listen, Area, Character, Connection, Room, RoomId};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
+
+fn load_areas(rooms: &mut HashMap<RoomId, Room>, areas: &mut Vec<Area>) {
+    log::info!("Loading areas");
+    // FIXME: daaaaaaang this is ugly
+    // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
+    match Area::load("default") {
+        Ok(mut area_def) => {
+            let mut room_defs = Vec::new();
+            std::mem::swap(&mut room_defs, &mut area_def.rooms);
+
+            let area = Area::from_prototype(area_def);
+            let area_idx = areas.len();
+            areas.push(area);
+            let area = &mut areas[area_idx];
+
+            for room_def in room_defs {
+                let room = Room::from_prototype(room_def, area_idx);
+                let room_idx = room.id;
+                rooms.insert(room.id, room);
+                area.rooms.push(room_idx);
+            }
+        }
+        Err(e) => log::error!("Error loading area {:?}", e),
+    }
+    log::info!("Loading areas: success");
+}
 
 fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io::Result<()> {
     let mut last_time: Instant;
     let mut connections: Arena<Connection> = Arena::new();
     let mut characters: Arena<Character> = Arena::new();
+    let mut areas = Vec::new();
+    let mut rooms = HashMap::new();
     let mut mark_for_disconnect = Vec::new();
+
+    load_areas(&mut rooms, &mut areas);
+
+    println!("{:?}\n\n{:?}", areas, rooms);
+
     loop {
         last_time = Instant::now();
 

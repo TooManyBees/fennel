@@ -1,0 +1,29 @@
+name = "Default"
+author = "Bees"
+
+[[rooms]]
+id = 1
+name = "The first room"
+description = '''
+The room is draped in a soft, dark fabric, but
+you can see the glow of moonlight seeping through
+the folds.
+'''
+
+[[rooms]]
+id = 2
+name = "The second room"
+description = '''
+The room is hard, flat marble. Bare on all sides.
+You can't tell where the light is coming from.
+Maddening.
+'''
+
+[[rooms]]
+id = 3
+name = "The third room"
+description = '''
+You're in a cozy study with a crackling fireplace.
+A wall of bookcases promises to distract you from
+the dreadful weather outside.
+'''
