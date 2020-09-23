@@ -18,7 +18,7 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
     // and I'm angry that I can't.
     let mut destinations_to_remove = vec![];
     for room in rooms.values() {
-        for exit in &room.exits {
+        for exit in room.exits.as_ref() {
             if !rooms.contains_key(&exit.to) {
                 destinations_to_remove.push(exit.to)
             }
@@ -26,7 +26,7 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
     }
     if !destinations_to_remove.is_empty() {
         for room in rooms.values_mut() {
-            for (n, exit) in room.exits.clone().into_iter().enumerate() {
+            for (n, exit) in room.exits.clone().as_ref().iter().enumerate() {
                 if destinations_to_remove.contains(&exit.to) {
                     log::warn!(
                         "Loading areas: removed room {}'s exit '{}' to nonexistant {}",
@@ -34,7 +34,7 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
                         &exit.dir,
                         &exit.to
                     );
-                    room.exits.swap_remove(n);
+                    room.exits.remove(n);
                 }
             }
         }
@@ -75,8 +75,9 @@ fn do_look(conn: &mut Connection, characters: &Arena<Character>, rooms: &HashMap
     if let Some(char) = conn.character.and_then(|idx| characters.get(idx)) {
         let room = rooms.get(&char.in_room).unwrap(); // FIXME: don't unwrap
         let _ = conn.write(&room.name);
+        let _ = conn.write(&room.exits);
         let _ = conn.write(&room.description);
-        let _ = conn.write("");
+        let _ = conn.write(&"");
     }
 }
 

@@ -22,7 +22,7 @@ pub struct RoomDef {
     id: RoomId,
     name: String,
     description: String,
-    exits: Vec<Exit>,
+    exits: Exits,
     // flags
     // sector type
     // extra descs
@@ -34,13 +34,39 @@ pub struct Exit {
     pub dir: String,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct Exits(pub Vec<Exit>);
+
+impl Exits {
+    pub fn remove(&mut self, index: usize) {
+        self.0.remove(index);
+    }
+}
+
+impl AsRef<Vec<Exit>> for Exits {
+    fn as_ref(&self) -> &Vec<Exit> {
+        &self.0
+    }
+}
+
+impl Display for Exits {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "[Exits:")?;
+        for exit in &self.0 {
+            write!(f, " {}", exit.dir)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Room {
     pub id: RoomId,
     pub area: usize,
     pub name: String,
     pub description: String,
-    pub exits: Vec<Exit>,
+    pub exits: Exits,
     // flags
     // sector type
     // extra descs

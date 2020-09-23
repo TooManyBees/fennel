@@ -1,4 +1,5 @@
 use generational_arena::Index;
+use std::fmt::Display;
 use std::io::{prelude::*, ErrorKind, Write};
 use std::net::{SocketAddr, TcpStream};
 
@@ -27,7 +28,7 @@ impl Connection {
         self.addr
     }
 
-    pub fn write(&mut self, message: &str) -> std::io::Result<()> {
+    pub fn write(&mut self, message: &dyn Display) -> std::io::Result<()> {
         write!(&mut self.output, "{}\r\n", message)
     }
 
