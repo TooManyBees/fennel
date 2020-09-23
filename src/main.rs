@@ -1,8 +1,8 @@
 use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
+use fnv::FnvHashMap as HashMap;
 use generational_arena::Arena;
 use log;
-use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::net::TcpListener;
 use std::thread;
@@ -44,7 +44,7 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
 fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
-    let mut rooms = HashMap::new();
+    let mut rooms = HashMap::default();
     // FIXME: daaaaaaang this is ugly
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
