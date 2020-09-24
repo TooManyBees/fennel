@@ -81,6 +81,45 @@ fn do_look(conn: &mut Connection, characters: &Arena<Character>, rooms: &HashMap
     }
 }
 
+fn accept_new_connections(
+    connections: &mut Arena<Connection>,
+    characters: &mut Arena<Character>,
+    rooms: &HashMap<RoomId, Room>,
+    receiver: &Receiver<(Connection, Character)>,
+) {
+    while let Ok((mut conn, char)) = receiver.try_recv() {
+        // FIXME: there must be a better test than a name comparison. Should I use a UUID or something?
+        if let Some((char_index, _)) = characters.iter().find(|(_, c)| c.name() == char.name()) {
+            log::info!(
+                "Connection regained from {} for {}",
+                conn.addr(),
+                char.name()
+            );
+            // Take control of the char
+            conn.character = Some(char_index);
+            if let Some((conn_idx, conn)) = connections
+                .iter_mut()
+                .find(|(_, conn)| conn.character == Some(char_index))
+            {
+                log::info!(
+                    "Connection taken over by {} for {}",
+                    conn.addr(),
+                    char.name()
+                );
+                let _ = conn.write(&"Disconnected");
+                let _ = conn.write_flush();
+                connections.remove(conn_idx);
+            }
+        } else {
+            log::info!("New connection from {} for {}", conn.addr(), char.name());
+            let char_idx = characters.insert(char);
+            conn.character = Some(char_idx);
+        }
+        do_look(&mut conn, &characters, &rooms);
+        let _conn_idx = connections.insert(conn);
+    }
+}
+
 fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io::Result<()> {
     let mut last_time: Instant;
     let mut connections: Arena<Connection> = Arena::new();
@@ -94,39 +133,13 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
     loop {
         last_time = Instant::now();
 
-        // let in the new connections
-        while let Ok((mut conn, char)) = connection_receiver.try_recv() {
-            // FIXME: there must be a better test than a name comparison. Should I use a UUID or something?
-            if let Some((char_index, _)) = characters.iter().find(|(_, c)| c.name() == char.name())
-            {
-                log::info!(
-                    "Connection regained from {} for {}",
-                    conn.addr(),
-                    char.name()
-                );
-                // Take control of the char
-                conn.character = Some(char_index);
-                if let Some((conn_idx, conn)) = connections
-                    .iter_mut()
-                    .find(|(_, conn)| conn.character == Some(char_index))
-                {
-                    log::info!(
-                        "Connection taken over by {} for {}",
-                        conn.addr(),
-                        char.name()
-                    );
-                    let _ = conn.write("Disconnected");
-                    let _ = conn.write_flush();
-                    connections.remove(conn_idx);
-                }
-            } else {
-                log::info!("New connection from {} for {}", conn.addr(), char.name());
-                let char_idx = characters.insert(char);
-                conn.character = Some(char_idx);
-            }
-            do_look(&mut conn, &characters, &rooms);
-            let _conn_idx = connections.insert(conn);
-        }
+        // for (idx, conn) in &connections {
+        //     if conn.character.is_none() {
+        //         mark_for_disconnect.push(idx);
+        //     }
+        // }
+
+        accept_new_connections(&mut connections, &mut characters, &rooms, &connection_receiver);
 
         // handle input
         for (idx, conn) in &mut connections {
@@ -159,7 +172,9 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         }
 
         for idx in &mark_for_disconnect {
-            connections.remove(*idx);
+            if let Some(conn) = connections.remove(*idx) {
+                // TODO: close connection
+            }
         }
         mark_for_disconnect.clear();
 
