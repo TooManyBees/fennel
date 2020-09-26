@@ -8,7 +8,8 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fennel::{listen, Area, Character, Connection, Room, RoomId};
+use fennel::commands::look;
+use fennel::{define_commands, listen, lookup_command, Area, Character, Connection, Room, RoomId};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -71,16 +72,6 @@ fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
     (areas, rooms)
 }
 
-fn do_look(conn: &mut Connection, characters: &Arena<Character>, rooms: &HashMap<RoomId, Room>) {
-    if let Some(char) = conn.character.and_then(|idx| characters.get(idx)) {
-        let room = rooms.get(&char.in_room).unwrap(); // FIXME: don't unwrap
-        let _ = conn.write(&room.name);
-        let _ = conn.write(&room.exits);
-        let _ = conn.write(&room.description);
-        let _ = conn.write(&"");
-    }
-}
-
 fn accept_new_connections(
     connections: &mut Arena<Connection>,
     characters: &mut Arena<Character>,
@@ -115,7 +106,7 @@ fn accept_new_connections(
             let char_idx = characters.insert(char);
             conn.character = Some(char_idx);
         }
-        do_look(&mut conn, &characters, &rooms);
+        look(&mut conn, "auto", characters, rooms);
         let _conn_idx = connections.insert(conn);
     }
 }
@@ -126,6 +117,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
     let mut characters: Arena<Character> = Arena::new();
     let mut mark_for_disconnect = Vec::new();
 
+    let commands = define_commands();
     let (areas, rooms) = load_areas();
 
     println!("{:?}\n\n{:?}", areas, rooms);
@@ -139,31 +131,39 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         //     }
         // }
 
-        accept_new_connections(&mut connections, &mut characters, &rooms, &connection_receiver);
+        accept_new_connections(
+            &mut connections,
+            &mut characters,
+            &rooms,
+            &connection_receiver,
+        );
 
         // handle input
         for (idx, conn) in &mut connections {
-            if let Err(e) = conn.read() {
-                match e.kind() {
-                    ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
-                        let char_name = conn
-                            .character
-                            .and_then(|idx| characters.get(idx))
-                            .map(|ch| ch.name());
-                        log::info!(
-                            "Connection went linkdead: {:?} from {}",
-                            char_name,
-                            conn.addr()
-                        );
-                        mark_for_disconnect.push(idx);
+            match conn.read() {
+                Ok(input) => conn.input = Some(input),
+                Err(e) => {
+                    match e.kind() {
+                        ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
+                            let char_name = conn
+                                .character
+                                .and_then(|idx| characters.get(idx))
+                                .map(|ch| ch.name());
+                            log::info!(
+                                "Connection went linkdead: {:?} from {}",
+                                char_name,
+                                conn.addr()
+                            );
+                            mark_for_disconnect.push(idx);
+                        }
+                        ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
+                        _ => log::warn!(
+                            "Unexpected input read error from {}: {:?} {}",
+                            conn.addr(),
+                            e.kind(),
+                            e
+                        ),
                     }
-                    ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
-                    _ => log::warn!(
-                        "Unexpected input read error from {}: {:?} {}",
-                        conn.addr(),
-                        e.kind(),
-                        e
-                    ),
                 }
             }
             // decrement lag
@@ -180,13 +180,15 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
 
         // update world
         for (_idx, conn) in &mut connections {
-            if let Some(character) = conn.character.and_then(|idx| characters.get(idx)) {
-                let pulse_output = format!(
-                    "heartbeat for {} majesty {}",
-                    character.pronoun().possessive(),
-                    character.name()
-                );
-                let _ = conn.write(&pulse_output);
+            if let Some(input) = conn.input.take() {
+                // FIXME: don't downcase the whole input; pull out the 1st cmd and downcase just that
+                let input = input.trim().to_ascii_lowercase();
+                if let Some(cmd) = lookup_command(&commands, &input) {
+                    // FIXME: slice off the command from the args, and feed it into 2nd arg here
+                    cmd(conn, "", &mut characters, &rooms);
+                } else {
+                    let _ = conn.write(&"I have no idea what that means!");
+                }
             }
         }
 

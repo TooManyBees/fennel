@@ -8,7 +8,7 @@ pub struct Connection {
     addr: SocketAddr,
     pub character: Option<Index>,
     in_buffer: [u8; 256],
-    input: Option<String>, // TODO: do this better
+    pub input: Option<String>, // TODO: do this better
     output: Vec<u8>,
 }
 
@@ -40,12 +40,11 @@ impl Connection {
         Ok(())
     }
 
-    pub fn read(&mut self) -> std::io::Result<()> {
+    pub fn read(&mut self) -> std::io::Result<String> {
         // FIXME: prevent input overflows; max length should be 256
         let n = self.stream.read(&mut self.in_buffer)?;
         let s = String::from_utf8(self.in_buffer[..n].to_vec())
             .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid UTF-8"))?;
-        self.input = Some(s);
-        Ok(())
+        Ok(s)
     }
 }

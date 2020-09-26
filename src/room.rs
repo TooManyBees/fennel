@@ -41,6 +41,10 @@ impl Exits {
     pub fn remove(&mut self, index: usize) {
         self.0.remove(index);
     }
+
+    pub fn get(&self, direction: &str) -> Option<&Exit> {
+        self.0.iter().find(|exit| exit.dir.as_str() == direction)
+    }
 }
 
 impl AsRef<Vec<Exit>> for Exits {
