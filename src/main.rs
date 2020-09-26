@@ -1,7 +1,7 @@
 use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use fnv::FnvHashMap as HashMap;
-use generational_arena::Arena;
+use generational_arena::{Index, Arena};
 use log;
 use std::io::ErrorKind;
 use std::net::TcpListener;
@@ -129,7 +129,13 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
     let commands = define_commands();
     let (areas, rooms) = load_areas();
 
-    println!("{:?}\n\n{:?}", areas, rooms);
+    // println!("{:?}\n\n{:?}", areas, rooms);
+
+    fn linkdead(idx: Index, conn: &mut Connection, characters: &mut Arena<Character>, mark_for_disconnect: &mut Vec<Index>) {
+        let char_name = conn.character.and_then(|idx| characters.get(idx)).map(|ch| ch.name());
+        log::info!("Connection went linkdead: {:?} from {}", char_name, conn.addr());
+        mark_for_disconnect.push(idx);
+    }
 
     loop {
         last_time = Instant::now();
@@ -151,20 +157,11 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         for (idx, conn) in &mut connections {
             match conn.read() {
                 Ok(input) if !input.is_empty() => conn.input = Some(input),
-                Ok(_) => {},
+                Ok(_) => linkdead(idx, conn, &mut characters, &mut mark_for_disconnect),
                 Err(e) => {
                     match e.kind() {
                         ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
-                            let char_name = conn
-                                .character
-                                .and_then(|idx| characters.get(idx))
-                                .map(|ch| ch.name());
-                            log::info!(
-                                "Connection went linkdead: {:?} from {}",
-                                char_name,
-                                conn.addr()
-                            );
-                            mark_for_disconnect.push(idx);
+                            linkdead(idx, conn, &mut characters, &mut mark_for_disconnect);
                         }
                         ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
                         _ => log::warn!(
@@ -182,7 +179,7 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         }
 
         for idx in &mark_for_disconnect {
-            if let Some(conn) = connections.remove(*idx) {
+            if let Some(_conn) = connections.remove(*idx) {
                 // TODO: close connection
             }
         }

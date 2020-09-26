@@ -96,6 +96,9 @@ fn move_char(
 }
 
 pub fn lookup_command<'a>(commands: &'a [CommandEntry], command: &str) -> Option<&'a CommandFn> {
+    if command.is_empty() {
+        return None;
+    }
     let command = command.to_ascii_lowercase();
     commands
         .iter()
