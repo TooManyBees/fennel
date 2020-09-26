@@ -9,6 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fennel::commands::look;
+use fennel::util::take_command;
 use fennel::{define_commands, listen, lookup_command, Area, Character, Connection, Room, RoomId};
 
 static PULSE_PER_SECOND: u32 = 3;
@@ -103,9 +104,17 @@ fn accept_new_connections(
             }
         } else {
             log::info!("New connection from {} for {}", conn.addr(), char.name());
+
+            // Ensure that the character's room still exists.
+            let mut char = char;
+            if rooms.get(&char.in_room).is_none() {
+                char.in_room = RoomId::default();
+            }
+
             let char_idx = characters.insert(char);
             conn.character = Some(char_idx);
         }
+
         look(&mut conn, "auto", characters, rooms);
         let _conn_idx = connections.insert(conn);
     }
@@ -141,7 +150,8 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         // handle input
         for (idx, conn) in &mut connections {
             match conn.read() {
-                Ok(input) => conn.input = Some(input),
+                Ok(input) if !input.is_empty() => conn.input = Some(input),
+                Ok(_) => {},
                 Err(e) => {
                     match e.kind() {
                         ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
@@ -181,13 +191,14 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         // update world
         for (_idx, conn) in &mut connections {
             if let Some(input) = conn.input.take() {
-                // FIXME: don't downcase the whole input; pull out the 1st cmd and downcase just that
-                let input = input.trim().to_ascii_lowercase();
-                if let Some(cmd) = lookup_command(&commands, &input) {
-                    // FIXME: slice off the command from the args, and feed it into 2nd arg here
-                    cmd(conn, "", &mut characters, &rooms);
+                if let Some((command, rest)) = take_command(&input) {
+                    if let Some(cmd) = lookup_command(&commands, command) {
+                        cmd(conn, rest, &mut characters, &rooms);
+                    } else {
+                        let _ = conn.write(&"I have no idea what that means!");
+                    }
                 } else {
-                    let _ = conn.write(&"I have no idea what that means!");
+                    // TODO: user just hit enter; still display prompt and all that
                 }
             }
         }

@@ -85,6 +85,7 @@ fn move_char(
         .and_then(|room| room.exits.get(arguments))
     {
         let to_room = &rooms[&exit.to]; // We audited this
+
         // leave message to room
         char.in_room = to_room.id;
         // arrive message to room
@@ -95,6 +96,7 @@ fn move_char(
 }
 
 pub fn lookup_command<'a>(commands: &'a [CommandEntry], command: &str) -> Option<&'a CommandFn> {
+    let command = command.to_ascii_lowercase();
     commands
         .iter()
         .find(|(name, _)| name.starts_with(&command))

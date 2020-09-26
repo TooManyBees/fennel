@@ -5,7 +5,7 @@ mod connection;
 mod listener;
 mod pronoun;
 mod room;
-mod util;
+pub mod util;
 
 pub use area::Area;
 pub use character::Character;

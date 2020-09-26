@@ -10,6 +10,28 @@ enum ParseState {
     // Can expand into non-english quotes here too
 }
 
+pub fn take_command(input: &str) -> Option<(&str, &str)> {
+    assert!(
+        input.ends_with('\n') || input.ends_with('\r'),
+        "take_argument input string must end with a CR or LF"
+    );
+
+    let partition = input
+        .char_indices()
+        .skip_while(|(_, c)| c.is_ascii_whitespace())
+        .skip_while(|(_, c)| !c.is_ascii_whitespace())
+        .next();
+
+    match partition {
+        // Some((_, ch)) if ch.is_ascii_whitespace() => None,
+        Some((idx, _)) => {
+            let (command, rest) = input.split_at(idx);
+            Some((command.trim(), rest))
+        }
+        None => None,
+    }
+}
+
 pub fn take_argument(input: &str) -> Option<(&str, &str)> {
     assert!(
         input.ends_with('\n') || input.ends_with('\r'),
@@ -65,9 +87,36 @@ pub fn take_argument(input: &str) -> Option<(&str, &str)> {
 #[cfg(test)]
 #[rustfmt::skip]
 mod test {
-    use super::take_argument;
+    use super::{take_command, take_argument};
 
-    macro_rules! test {
+    #[test]
+    fn command_no_arguments() {
+        let input = "command\r\n";
+        let command = take_command(input).map(|(command, _)| command);
+        assert_eq!(command, Some("command"));
+    }
+
+    #[test]
+    fn command_with_arguments() {
+        let input = "command whatever else\r\n";
+        let (command, rest) = take_command(input).unwrap();
+        assert_eq!(command, "command");
+        assert_eq!(rest, " whatever else\r\n");
+    }
+
+    #[test]
+    fn take_command_whitespace() {
+        let input = "  \r\n";
+        assert_eq!(None, take_command(input));
+    }
+
+    #[test]
+    fn take_command_empty() {
+        let input = "\r\n";
+        assert_eq!(None, take_command(input));
+    }
+
+    macro_rules! test_argument {
         ($name:ident, $input:expr, $expected:expr) => {
             #[test]
             fn $name() {
@@ -78,14 +127,14 @@ mod test {
         };
     }
 
-    test!(single_word, "hello\r\n", Some("hello"));
-    test!(surrounding_whitespace, "    hello  \r\n", Some("hello"));
-    test!(single_quote, " 'up tree'\r\n", Some("up tree"));
-    test!(double_quote, " \"up tree\"\r\n", Some("up tree"));
-    test!(nested_single_quotes, " \"barry's account book\" barry\r\n", Some("barry's account book"));
-    test!(nested_double_quotes, " 'very \"fancy\" book' barry\r\n", Some("very \"fancy\" book"));
-    test!(all_whitespace, "    \r\n", None);
-    test!(empty_input, "\r\n", None);
+    test_argument!(single_word, "hello\r\n", Some("hello"));
+    test_argument!(surrounding_whitespace, "    hello  \r\n", Some("hello"));
+    test_argument!(single_quote, " 'up tree'\r\n", Some("up tree"));
+    test_argument!(double_quote, " \"up tree\"\r\n", Some("up tree"));
+    test_argument!(nested_single_quotes, " \"barry's account book\" barry\r\n", Some("barry's account book"));
+    test_argument!(nested_double_quotes, " 'very \"fancy\" book' barry\r\n", Some("very \"fancy\" book"));
+    test_argument!(all_whitespace, "    \r\n", None);
+    test_argument!(empty_input, "\r\n", None);
 
     #[test]
     fn repeated() {
