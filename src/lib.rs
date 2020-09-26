@@ -5,6 +5,7 @@ mod connection;
 mod listener;
 mod pronoun;
 mod room;
+mod telnet;
 pub mod util;
 
 pub use area::Area;

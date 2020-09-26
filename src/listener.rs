@@ -6,6 +6,7 @@ use std::net::{TcpListener, TcpStream};
 use crate::character::PlayerRecord;
 use crate::pronoun::Pronoun;
 use crate::ConnectionBuilder;
+use crate::telnet::{Telnet, TelnetEvent, TelnetOption, NegotiationAction};
 
 #[derive(Debug)]
 pub enum LoginError {
@@ -44,21 +45,29 @@ pub enum LoadError {
 }
 
 async fn read_string(
-    buf: &mut [u8],
-    stream: &mut Async<TcpStream>,
-    max_len: usize,
+    stream: &mut Telnet<Async<TcpStream>>,
     timeout: Option<usize>,
 ) -> Result<String, io::Error> {
-    let bytes_read = stream.read(buf).await?;
-    if bytes_read == 0 {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "Read 0 bytes"));
+    loop {
+        match stream.read().await {
+            Ok(TelnetEvent::Data(data)) => {
+                let v = Vec::from(data);
+                let string = String::from_utf8(v)
+                    .map_err(|_| std::io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
+                return Ok(string.trim().to_string());
+            }
+            Ok(TelnetEvent::Negotiation(n, o)) => {
+                log::debug!("Telnet negotiation {:?} {:?}", n, o);
+            }
+            Ok(TelnetEvent::Subnegotiation(o, data)) => {
+                log::debug!("Telnet subnegotation {:?} {:X?}", o, data);
+            }
+            Ok(TelnetEvent::Error(s)) => log::debug!("Telnet error: {}", s),
+            Ok(TelnetEvent::NoData) | Ok(TelnetEvent::TimedOut) => {},
+            Ok(TelnetEvent::UnknownIAC(iac)) => {},
+            Err(e) => log::debug!("Telnet io error: {}", e),
+        }
     }
-    // TODO: test for max_len
-    // TODO: test for timeout
-    let string = String::from_utf8(buf[..bytes_read].to_vec())
-        .map_err(|_| std::io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
-    let string = string.trim().to_string();
-    Ok(string)
 }
 
 async fn load_old_character(name: &str) -> Result<Option<PlayerRecord>, LoadError> {
@@ -80,30 +89,30 @@ async fn load_old_character(name: &str) -> Result<Option<PlayerRecord>, LoadErro
     }
 }
 
-async fn do_login(stream: &mut Async<TcpStream>) -> Result<PlayerRecord, LoginError> {
-    let mut buf = [0u8; 160];
-
-    stream.write_all(b"What is your name? \xFF\xF9").await?;
-    let name = read_string(&mut buf, stream, 32, None).await?;
+async fn do_login(stream: &mut Telnet<Async<TcpStream>>) -> Result<PlayerRecord, LoginError> {
+    // stream.negotiate(NegotiationAction::Do, TelnetOption::TTYPE).await;
+    stream.write(b"What is your name? \xFF\xF9").await?;
+    let name = read_string(stream, None).await?;
     if name.is_empty() {
         return Err(LoginError::NoName);
     }
     // TODO: if denied_name? Err(loginError)
     // TODO: if forbidden_name? Err(loginError)
 
-    return match load_old_character(&name).await? {
-        Some(old_character) => do_character_old(stream, buf, old_character).await,
-        None => do_character_new(stream, buf, name).await,
-    };
+    // stream.subnegotiate(TelnetOption::TTYPE, &[0x01]).await;
+
+    match load_old_character(&name).await? {
+        Some(old_character) => do_character_old(stream, old_character).await,
+        None => do_character_new(stream, name).await,
+    }
 }
 
 async fn do_character_old(
-    stream: &mut Async<TcpStream>,
-    mut buf: [u8; 160],
+    stream: &mut Telnet<Async<TcpStream>>,
     char: PlayerRecord,
 ) -> Result<PlayerRecord, LoginError> {
-    stream.write_all(b"Password: \xFF\xF9").await?;
-    let password = read_string(&mut buf, stream, 160, None).await?;
+    stream.write(b"Password:  \xFF\xF9").await?;
+    let password = read_string(stream, None).await?;
     if bcrypt::verify(&password, &char.password())? {
         Ok(char)
     } else {
@@ -112,19 +121,18 @@ async fn do_character_old(
 }
 
 async fn do_character_new(
-    stream: &mut Async<TcpStream>,
-    mut buf: [u8; 160],
+    stream: &mut Telnet<Async<TcpStream>>,
     name: String,
 ) -> Result<PlayerRecord, LoginError> {
     let mut password = None;
     let mut password_confirmed = false;
     let mut pronoun = None;
-    stream.write_all(b"Give us a password. Leading and trailing whitespace will be removed; *interior* whitespace will be preserved. Be careful.\r\nPassword: \xFF\xF9").await?;
+    stream.write(b"Give us a password. Leading and trailing whitespace will be removed; *interior* whitespace will be preserved. Be careful.\r\nPassword:  \xFF\xF9").await?;
     while password.is_none() {
-        let maybe_password = read_string(&mut buf, stream, 160, None).await?;
+        let maybe_password = read_string(stream, None).await?;
         if maybe_password.is_empty() {
             stream
-                .write_all(b"You can't leave your password blank. Password: \xFF\xF9")
+                .write(b"You can't leave your password blank. Password:  \xFF\xF9")
                 .await?;
             continue;
         }
@@ -133,22 +141,22 @@ async fn do_character_new(
     }
     let password = password.unwrap(); // Unwrapped and immutable
 
-    stream.write_all(b"Confirm password: \xFF\xF9").await?;
+    stream.write(b"Confirm password:  \xFF\xF9").await?;
     while !password_confirmed {
-        let maybe_same_password = read_string(&mut buf, stream, 160, None).await?;
+        let maybe_same_password = read_string(stream, None).await?;
         password_confirmed = bcrypt::verify(maybe_same_password, &password)?;
         if !password_confirmed {
             stream
-                .write_all(b"Password doesn't match. Try again: \xFF\xF9")
+                .write(b"Password doesn't match. Try again:  \xFF\xF9")
                 .await?;
         }
     }
 
     stream
-        .write_all(b"How do we refer to you (it/he/she/they)? \xFF\xF9")
+        .write(b"How do we refer to you (it/he/she/they)?  \xFF\xF9")
         .await?;
     while pronoun.is_none() {
-        let maybe_pronoun = read_string(&mut buf, stream, 32, None).await?;
+        let maybe_pronoun = read_string(stream, None).await?;
         match maybe_pronoun.to_ascii_lowercase().as_str() {
             "it" => pronoun = Some(Pronoun::It),
             "he" => pronoun = Some(Pronoun::He),
@@ -156,8 +164,8 @@ async fn do_character_new(
             "they" => pronoun = Some(Pronoun::They),
             _ => {
                 stream
-                    .write_all(b"That's not an option we know.\r\nPick again: \xFF\xF9")
-                    .await?
+                    .write(b"That's not an option we know.\r\nPick again: \xFF\xF9")
+                    .await?;
             }
         }
     }
@@ -170,12 +178,13 @@ async fn do_character_new(
 pub fn listen(listener: Async<TcpListener>, sender: Sender<(ConnectionBuilder, PlayerRecord)>) {
     smol::block_on(async {
         loop {
-            if let Ok((mut stream, addr)) = listener.accept().await {
+            if let Ok((stream, addr)) = listener.accept().await {
+                let mut stream = Telnet::from_stream(stream, 160);
                 let sender = sender.clone();
                 smol::spawn(async move {
                     match do_login(&mut stream).await {
                         Ok(player) => {
-                            if let Ok(stream) = stream.into_inner() {
+                            if let Ok(stream) = stream.into_inner().into_inner() {
                                 let connection = ConnectionBuilder::new(stream, addr);
                                 // FIXME: sender is a regular crossbeam-channel, not an async channel
                                 // is sender.send (potentially blocking) a bad move inside an async
@@ -186,28 +195,29 @@ pub fn listen(listener: Async<TcpListener>, sender: Sender<(ConnectionBuilder, P
                         }
                         Err(e) => {
                             let _ = match e {
-                                LoginError::NoName => stream.write_all(b"No name given, bye!\r\n\xFF\xF9").await,
+                                LoginError::NoName => stream.write(b"No name given, bye!\r\n\xFF\xF9").await,
                                 LoginError::WrongPassword(name) => {
                                     log::info!("Failed password attempt on {}", name);
-                                    stream.write_all(b"Wrong password, bye!\r\n\xFF\xF9").await
+                                    stream.write(b"Wrong password, bye!\r\n\xFF\xF9").await
                                 },
                                 LoginError::IO(e) => {
                                     log::error!("{}", e);
-                                    stream.write_all(b"Error encountered, bye!\r\n\xFF\xF9").await
+                                    stream.write(b"Error encountered, bye!\r\n\xFF\xF9").await
                                 },
                                 LoginError::LoadError(LoadError::Unparsable(name)) => {
                                     log::error!("Error loading pfile {}: unparsable", name);
-                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
+                                    stream.write(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
                                 }
                                 LoginError::LoadError(LoadError::IO(e, name)) => {
                                     log::error!("Error loading pfile {}: {}", name, e);
-                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
+                                    stream.write(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
                                 }
                                 LoginError::Bcrypt(e) => {
                                     log::error!("Error verifying password {}", e);
-                                    stream.write_all(b"Error encountered, bye!\r\n\xFF\xF9").await
+                                    stream.write(b"Error encountered, bye!\r\n\xFF\xF9").await
                                 },
                             };
+                            let mut stream = stream.into_inner();
                             let _ = stream.close().await;
                         }
                     }
