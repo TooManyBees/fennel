@@ -107,3 +107,19 @@ than just DOing them, I think.
 ### Every time, I'm telling ya
 
 ![A git diff, showing a mistakenly negated conditional ("if now > next_pulse" when it should have been "<") that caused the game loop to run as fast as possible](img/lol-arithmetic.png)
+
+### I got rooms, I got exits, I got NPCs
+
+![Console output showing movement through rooms, and looking at an NPC's description](img/look.png)
+
+I'm using a
+[TOML format](https://github.com/TooManyBees/fennel/blob/18d4d6c7e3e12d6fc56a68b613928e76f439a59b/areas/default.toml)
+for my area files. Fuck you, h8rs. I think I'll eventually change the area
+format from a list of `[[rooms]]` to a map of `[room.N]` where `N` is a number.
+I just think it'll be easier to visually parse. Anyway, there's no Serde adaptor
+for Diku `.are` files, and I'm *not* reimplementing an `.are` parser in Rust.
+
+The minimal code for getting NPCs into the game involves
+[iterating through every character](https://github.com/TooManyBees/fennel/blob/08934a9281248f40c8886250c44a0e5e7a3ed93f/src/commands.rs#L53-L55)
+to determine who is interactible in the player's room, and going forward I'm
+definitely going to want a Vec or linked list per room for this purpose.
