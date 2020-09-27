@@ -1,5 +1,5 @@
-use std::io::{Error, ErrorKind, Result};
 use std::fs::File;
+use std::io::{Error, ErrorKind, Result};
 
 use crate::PlayerRecord;
 

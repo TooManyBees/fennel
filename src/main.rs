@@ -1,7 +1,7 @@
 use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use fnv::FnvHashMap as HashMap;
-use generational_arena::Arena;
+use generational_arena::{Arena, Index};
 use log;
 use std::io::{ErrorKind, Write};
 use std::net::TcpListener;
@@ -88,6 +88,7 @@ fn accept_new_connections(
     connections: &mut Arena<Connection>,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
     receiver: &Receiver<(ConnectionBuilder, PlayerRecord)>,
 ) {
     while let Ok((conn_builder, record)) = receiver.try_recv() {
@@ -97,7 +98,9 @@ fn accept_new_connections(
             .iter()
             .find(|(_, c)| c.player_name() == player.name())
         {
-            let char = &characters[conn.character];
+            let char = characters
+                .get(conn.character)
+                .expect("Unwrapped None character");
             let existing_conn = connections.remove(conn_index).unwrap();
             log::info!(
                 "Connection overridden from {} to {} for {}",
@@ -131,11 +134,15 @@ fn accept_new_connections(
                 char.in_room = RoomId::default();
             }
 
+            let in_room = room_chars
+                .get_mut(&char.in_room)
+                .expect("Unwrapped None room chars");
             let char_idx = characters.insert(char);
+            in_room.push(char_idx);
             conn_builder.logged_in(player, char_idx)
         };
 
-        let _ = look(&mut conn, "auto", characters, rooms);
+        let _ = look(&mut conn, "auto", characters, rooms, room_chars);
         let _conn_idx = connections.insert(conn);
     }
 }
@@ -150,10 +157,18 @@ fn game_loop(
 
     let commands = define_commands();
     let (areas, npcs, rooms) = load_areas();
+    let mut room_chars: HashMap<RoomId, Vec<Index>> = HashMap::default();
+    for key in rooms.keys() {
+        room_chars.insert(*key, vec![]);
+    }
 
     for npc in npcs.values() {
         // TODO: oh no! the area won't work when a mob disappears, we won't have the index to remove it D:
-        characters.insert(npc.clone());
+        let idx = characters.insert(npc.clone());
+        let in_room = room_chars
+            .get_mut(&npc.in_room)
+            .expect("Unwrapped None room chars");
+        in_room.push(idx);
     }
 
     println!("{:?}\n\n{:?}\n\n{:?}", areas, npcs, rooms);
@@ -171,6 +186,7 @@ fn game_loop(
             &mut connections,
             &mut characters,
             &rooms,
+            &mut room_chars,
             &connection_receiver,
         );
 
@@ -215,7 +231,7 @@ fn game_loop(
             if let Some(input) = conn.input.take() {
                 if let Some((command, rest)) = take_command(&input) {
                     let _ = if let Some(cmd) = lookup_command(&commands, command) {
-                        cmd(conn, rest, &mut characters, &rooms)
+                        cmd(conn, rest, &mut characters, &rooms, &mut room_chars)
                     } else {
                         write!(conn, "I have no idea what that means!")
                     };

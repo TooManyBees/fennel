@@ -1,7 +1,7 @@
 use crate::util::{self, take_argument};
 use crate::{Character, Connection, PlayerRecord, Room, RoomId};
 use fnv::FnvHashMap as HashMap;
-use generational_arena::Arena;
+use generational_arena::{Arena, Index};
 use std::io::{Result as IoResult, Write};
 
 // pub enum Position {
@@ -11,8 +11,13 @@ use std::io::{Result as IoResult, Write};
 //     Fighting,
 // }
 
-pub type CommandFn =
-    fn(&mut Connection, &str, &mut Arena<Character>, &HashMap<RoomId, Room>) -> IoResult<()>;
+pub type CommandFn = fn(
+    &mut Connection,
+    &str,
+    &mut Arena<Character>,
+    &HashMap<RoomId, Room>,
+    &mut HashMap<RoomId, Vec<Index>>,
+) -> IoResult<()>;
 pub type CommandEntry = (String, CommandFn);
 
 pub fn define_commands() -> Vec<CommandEntry> {
@@ -31,8 +36,12 @@ pub fn save(
     _arguments: &str,
     characters: &mut Arena<Character>,
     _rooms: &HashMap<RoomId, Room>,
+    _room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    let character = characters[conn.character].clone();
+    let character = characters
+        .get(conn.character)
+        .expect("Unwrapped None character")
+        .clone();
     let player_record = PlayerRecord::from_player(conn.player().clone(), character);
     match util::save(conn.player_name(), player_record) {
         Ok(()) => write!(conn, "Saved!\n"),
@@ -48,11 +57,16 @@ pub fn look(
     arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    let char = &characters[conn.character];
-    let room = &rooms[&char.in_room];
+    let char = characters
+        .get(conn.character)
+        .expect("Unwrapped None character");
+    let room = rooms.get(&char.in_room).expect("Unwrapped None room");
     let (arg, _) = take_argument(arguments);
-    // FIXME: Okay, we're absolutely going with intrusive lists for chars/objs/etc in the room. Just not now.
+    let in_room = room_chars
+        .get(&char.in_room)
+        .expect("Unwrapped None room chars");
     match arg {
         Some("auto") | None => {
             write!(
@@ -60,17 +74,16 @@ pub fn look(
                 "{}\n{}\n{}\n",
                 &room.name, &room.exits, &room.description
             )?;
-            for (_, ch) in characters
-                .iter()
-                .filter(|(_, ch)| ch.in_room == char.in_room)
-            {
+            for idx in in_room {
+                let ch = characters.get(*idx).expect("Unwrapped None character");
                 write!(conn, "{}\n", ch.room_description())?;
             }
         }
         Some(a) => {
-            if let Some((_, target)) = characters
+            if let Some(target) = in_room
                 .iter()
-                .find(|(_, ch)| ch.name().starts_with(a) && ch.in_room == char.in_room)
+                .filter_map(|idx| characters.get(*idx))
+                .find(|ch| ch.name().starts_with(a))
             {
                 write!(
                     conn,
@@ -91,8 +104,9 @@ fn north(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    move_char(conn, "north", characters, rooms)
+    move_char(conn, "north", characters, rooms, room_chars)
 }
 
 fn south(
@@ -100,8 +114,9 @@ fn south(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    move_char(conn, "south", characters, rooms)
+    move_char(conn, "south", characters, rooms, room_chars)
 }
 
 fn east(
@@ -109,8 +124,9 @@ fn east(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    move_char(conn, "east", characters, rooms)
+    move_char(conn, "east", characters, rooms, room_chars)
 }
 
 fn west(
@@ -118,27 +134,33 @@ fn west(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    move_char(conn, "west", characters, rooms)
+    move_char(conn, "west", characters, rooms, room_chars)
 }
 
+// TODO: rename this to navigate_char, because it's using directions. move_char should be reserved
+// for moving a character directly to any arbitrary room.
 fn move_char(
     conn: &mut Connection,
     arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
 ) -> IoResult<()> {
-    let char = &mut characters[conn.character];
+    let char = characters
+        .get_mut(conn.character)
+        .expect("Unwrapped None character");
     if let Some(exit) = rooms
         .get(&char.in_room)
         .and_then(|room| room.exits.get(arguments))
     {
-        let to_room = &rooms[&exit.to]; // We audited this
+        let to_room = rooms.get(&exit.to).expect("Unwrapped None room");
 
-        // leave message to room
-        char.in_room = to_room.id;
-        // arrive message to room
-        look(conn, "auto", characters, rooms)?;
+        transfer_char(conn.character, to_room.id, characters, room_chars);
+        // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
+        // first (since we already have it)
+        look(conn, "auto", characters, rooms, room_chars)?;
     } else {
         write!(conn, "You can't go {}.", arguments)?;
     }
@@ -154,4 +176,36 @@ pub fn lookup_command<'a>(commands: &'a [CommandEntry], command: &str) -> Option
         .iter()
         .find(|(name, _)| name.starts_with(&command))
         .map(|(_, cmd)| cmd)
+}
+
+// TODO: This is not a command; move it to a different module eventually
+pub fn transfer_char(
+    index: Index,
+    to_room: RoomId,
+    characters: &mut Arena<Character>,
+    room_chars: &mut HashMap<RoomId, Vec<Index>>,
+) -> Result<(), ()> {
+    let char = characters.get_mut(index).expect("Unwrapped None character");
+    let in_room = room_chars
+        .get_mut(&char.in_room)
+        .expect("Unwrapped None room chars");
+    if let Some(i) = in_room
+        .iter()
+        .enumerate()
+        .find(|(_, idx)| **idx == index)
+        .map(|(i, _)| i)
+    {
+        in_room.remove(i);
+    } else {
+        log::warn!("transfer_char: couldn't remove char from {}", char.in_room);
+    }
+    char.in_room = to_room;
+    // Add char index to new room
+    if let Some(in_room) = room_chars.get_mut(&char.in_room) {
+        in_room.push(index);
+        Ok(())
+    } else {
+        log::warn!("transfer_char: couldn't move to {}", to_room);
+        Err(())
+    }
 }
