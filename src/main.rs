@@ -135,7 +135,7 @@ fn accept_new_connections(
             conn_builder.logged_in(player, char_idx)
         };
 
-        look(&mut conn, "auto", characters, rooms);
+        let _ = look(&mut conn, "auto", characters, rooms);
         let _conn_idx = connections.insert(conn);
     }
 }

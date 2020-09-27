@@ -43,6 +43,10 @@ impl Connection {
         self.addr
     }
 
+    pub fn player(&self) -> &Player {
+        &self.player
+    }
+
     pub fn player_name(&self) -> &str {
         self.player.name()
     }

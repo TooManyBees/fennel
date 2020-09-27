@@ -2,7 +2,6 @@ use bcrypt::BcryptError;
 use crossbeam_channel::Sender;
 use smol::{fs, io, prelude::*, Async};
 use std::net::{TcpListener, TcpStream};
-use std::path::Path;
 
 use crate::character::PlayerRecord;
 use crate::pronoun::Pronoun;
@@ -64,7 +63,7 @@ async fn read_string(
 
 async fn load_old_character(name: &str) -> Result<Option<PlayerRecord>, LoadError> {
     // FIXME: do this on a SEPARATE thread with its own async reactor dedicated to loading/saving files
-    let pfile_path = Path::new("players").join(name).with_extension("json");
+    let pfile_path = PlayerRecord::file_path(name);
     match fs::File::open(pfile_path).await {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(LoadError::IO(e, name.to_string())),

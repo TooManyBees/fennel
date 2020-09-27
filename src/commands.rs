@@ -1,5 +1,5 @@
-use crate::util::take_argument;
-use crate::{Character, Connection, Room, RoomId};
+use crate::util::{self, take_argument};
+use crate::{Character, Connection, PlayerRecord, Room, RoomId};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::Arena;
 use std::io::{Result as IoResult, Write};
@@ -22,7 +22,25 @@ pub fn define_commands() -> Vec<CommandEntry> {
         ("east".to_string(), east),
         ("west".to_string(), west),
         ("look".to_string(), look),
+        ("save".to_string(), save),
     ]
+}
+
+pub fn save(
+    conn: &mut Connection,
+    _arguments: &str,
+    characters: &mut Arena<Character>,
+    _rooms: &HashMap<RoomId, Room>,
+) -> IoResult<()> {
+    let character = characters[conn.character].clone();
+    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
+    match util::save(conn.player_name(), player_record) {
+        Ok(()) => write!(conn, "Saved!\n"),
+        Err(e) => {
+            log::error!("SAVE ERROR for {}: {}", &conn.player_name(), e);
+            write!(conn, "Your character couldn't be saved.")
+        }
+    }
 }
 
 pub fn look(

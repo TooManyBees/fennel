@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::default::Default;
+use std::path::{Path, PathBuf};
 
 use crate::pronoun::Pronoun;
 use crate::room::RoomId;
@@ -7,7 +8,7 @@ use crate::room::RoomId;
 #[derive(Copy, Clone, Debug, Default, Deserialize, Hash, Eq, PartialEq, Serialize)]
 pub struct CharId(u32);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Player {
     name: String,
     password: String,
@@ -27,6 +28,10 @@ pub struct PlayerRecord {
 }
 
 impl PlayerRecord {
+    pub fn file_path(name: &str) -> PathBuf {
+        Path::new("players").join(name).with_extension("json")
+    }
+
     pub fn new(name: String, pronoun: Pronoun, password: String) -> PlayerRecord {
         PlayerRecord {
             name: name.clone(),
@@ -38,6 +43,14 @@ impl PlayerRecord {
                 pronoun,
                 ..Default::default()
             },
+        }
+    }
+
+    pub fn from_player(player: Player, character: Character) -> PlayerRecord {
+        PlayerRecord {
+            name: player.name,
+            password: player.password,
+            character,
         }
     }
 
