@@ -3,7 +3,7 @@ use femme::{self, LevelFilter};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::Arena;
 use log;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Write};
 use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -116,7 +116,7 @@ fn accept_new_connections(
                 char.name()
             );
             let mut conn = conn_builder.logged_in(player, char_idx);
-            let _ = conn.write(&"Reconnecting...");
+            let _ = write!(&mut conn, "Reconnecting...\n");
             conn
         } else {
             log::info!(
@@ -214,11 +214,11 @@ fn game_loop(
         for (_idx, conn) in &mut connections {
             if let Some(input) = conn.input.take() {
                 if let Some((command, rest)) = take_command(&input) {
-                    if let Some(cmd) = lookup_command(&commands, command) {
-                        cmd(conn, rest, &mut characters, &rooms);
+                    let _ = if let Some(cmd) = lookup_command(&commands, command) {
+                        cmd(conn, rest, &mut characters, &rooms)
                     } else {
-                        let _ = conn.write(&"I have no idea what that means!");
-                    }
+                        write!(conn, "I have no idea what that means!")
+                    };
                 } else {
                     // TODO: user just hit enter; still display prompt and all that
                 }

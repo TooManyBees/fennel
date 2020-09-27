@@ -2,6 +2,7 @@ use crate::util::take_argument;
 use crate::{Character, Connection, Room, RoomId};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::Arena;
+use std::io::{Result as IoResult, Write};
 
 // pub enum Position {
 //     Asleep,
@@ -10,7 +11,8 @@ use generational_arena::Arena;
 //     Fighting,
 // }
 
-pub type CommandFn = fn(&mut Connection, &str, &mut Arena<Character>, &HashMap<RoomId, Room>);
+pub type CommandFn =
+    fn(&mut Connection, &str, &mut Arena<Character>, &HashMap<RoomId, Room>) -> IoResult<()>;
 pub type CommandEntry = (String, CommandFn);
 
 pub fn define_commands() -> Vec<CommandEntry> {
@@ -28,21 +30,23 @@ pub fn look(
     arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     let char = &characters[conn.character];
     let room = &rooms[&char.in_room];
     let (arg, _) = take_argument(arguments);
     // FIXME: Okay, we're absolutely going with intrusive lists for chars/objs/etc in the room. Just not now.
     match arg {
         Some("auto") | None => {
-            let _ = conn.write(&room.name);
-            let _ = conn.write(&room.exits);
-            let _ = conn.write(&room.description);
+            write!(
+                conn,
+                "{}\n{}\n{}\n",
+                &room.name, &room.exits, &room.description
+            )?;
             for (_, ch) in characters
                 .iter()
                 .filter(|(_, ch)| ch.in_room == char.in_room)
             {
-                let _ = conn.write(&ch.room_description());
+                write!(conn, "{}\n", ch.room_description())?;
             }
         }
         Some(a) => {
@@ -50,16 +54,18 @@ pub fn look(
                 .iter()
                 .find(|(_, ch)| ch.name().starts_with(a) && ch.in_room == char.in_room)
             {
-                let _ = conn.write(&format!(
-                    "You look at {}.\n{}",
+                write!(
+                    conn,
+                    "You look at {}.\n{}\n",
                     target.formal_name(),
                     target.description()
-                ));
+                )?;
             } else {
-                let _ = write!(conn, "You don't see any {} here.\n", a);
+                write!(conn, "You don't see any {} here.\n", a)?;
             }
         }
     }
+    Ok(())
 }
 
 fn north(
@@ -67,7 +73,7 @@ fn north(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     move_char(conn, "north", characters, rooms)
 }
 
@@ -76,7 +82,7 @@ fn south(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     move_char(conn, "south", characters, rooms)
 }
 
@@ -85,7 +91,7 @@ fn east(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     move_char(conn, "east", characters, rooms)
 }
 
@@ -94,7 +100,7 @@ fn west(
     _arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     move_char(conn, "west", characters, rooms)
 }
 
@@ -103,7 +109,7 @@ fn move_char(
     arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-) {
+) -> IoResult<()> {
     let char = &mut characters[conn.character];
     if let Some(exit) = rooms
         .get(&char.in_room)
@@ -114,10 +120,11 @@ fn move_char(
         // leave message to room
         char.in_room = to_room.id;
         // arrive message to room
-        look(conn, "auto", characters, rooms);
+        look(conn, "auto", characters, rooms)?;
     } else {
-        let _ = conn.write(&"You can't go that way.");
+        write!(conn, "You can't go {}.", arguments)?;
     }
+    Ok(())
 }
 
 pub fn lookup_command<'a>(commands: &'a [CommandEntry], command: &str) -> Option<&'a CommandFn> {

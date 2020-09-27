@@ -1,9 +1,9 @@
 use generational_arena::Index;
-use std::fmt::Display;
-use std::io::{prelude::*, ErrorKind, Write};
+use std::io::{prelude::*, ErrorKind, Result as IoResult, Write};
 use std::net::{SocketAddr, TcpStream};
 
 use crate::Player;
+use serde::export::fmt::Arguments;
 
 pub struct ConnectionBuilder {
     pub stream: TcpStream,
@@ -47,11 +47,7 @@ impl Connection {
         self.player.name()
     }
 
-    pub fn write(&mut self, message: &dyn Display) -> std::io::Result<()> {
-        write!(&mut self.output, "{}\r\n", message)
-    }
-
-    pub fn write_flush(&mut self) -> std::io::Result<()> {
+    pub fn write_flush(&mut self) -> IoResult<()> {
         if !self.output.is_empty() {
             self.stream.write_all(&self.output)?;
             self.output.clear(); // TODO: find a way to shrink capacity down to 500 if poss?
@@ -65,5 +61,19 @@ impl Connection {
         let s = String::from_utf8(self.in_buffer[..n].to_vec())
             .map_err(|_| std::io::Error::new(ErrorKind::InvalidData, "Invalid UTF-8"))?;
         Ok(s)
+    }
+}
+
+impl Write for Connection {
+    fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> IoResult<()> {
+        self.stream.flush()
+    }
+
+    fn write_fmt(&mut self, fmt: Arguments<'_>) -> IoResult<()> {
+        self.stream.write_fmt(fmt)
     }
 }
