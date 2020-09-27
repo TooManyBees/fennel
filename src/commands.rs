@@ -74,8 +74,14 @@ pub fn look(
                 "{}\n{}\n{}\n",
                 &room.name, &room.exits, &room.description
             )?;
-            for idx in in_room {
-                let ch = characters.get(*idx).expect("Unwrapped None character");
+            let self_idx = conn.character;
+            for ch in in_room.iter().filter_map(|&idx| {
+                if idx != self_idx {
+                    characters.get(idx)
+                } else {
+                    None
+                }
+            }) {
                 write!(conn, "{}\n", ch.room_description())?;
             }
         }
@@ -85,6 +91,7 @@ pub fn look(
                 .filter_map(|idx| characters.get(*idx))
                 .find(|ch| ch.name().starts_with(a))
             {
+                // TODO: if self, "you look at yourself"...
                 write!(
                     conn,
                     "You look at {}.\n{}\n",

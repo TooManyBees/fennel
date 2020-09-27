@@ -4,9 +4,16 @@ use std::path::{Path, PathBuf};
 
 use crate::pronoun::Pronoun;
 use crate::room::RoomId;
+use std::fmt::{Display, Formatter};
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, Hash, Eq, PartialEq, Serialize)]
 pub struct CharId(u32);
+
+impl Display for CharId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Player {
@@ -39,7 +46,6 @@ impl PlayerRecord {
             character: Character {
                 name: name.clone(),
                 formal_name: name.clone(),
-                room_description: name, // FIXME: %n is [standing|resting|sleeping] here
                 pronoun,
                 ..Default::default()
             },
@@ -75,9 +81,9 @@ pub struct Character {
     id: CharId,
     name: String,
     formal_name: String,
-    room_description: String,
-    #[serde(default)]
-    description: String,
+    #[serde(skip_serializing)]
+    room_description: Option<String>,
+    description: Option<String>,
     pronoun: Pronoun,
     // password: String,
     #[serde(default)]
@@ -97,15 +103,56 @@ impl Character {
         &self.formal_name
     }
 
-    pub fn description(&self) -> &str {
-        &self.description
+    pub fn description(&self) -> Description {
+        Description {
+            description: self.description.as_deref(),
+            pronoun: self.pronoun,
+        }
     }
 
-    pub fn room_description(&self) -> &str {
-        &self.room_description
+    pub fn room_description(&self) -> RoomDescription {
+        RoomDescription {
+            room_description: self.room_description.as_deref(),
+            name: &self.name,
+            formal_name: &self.formal_name,
+        }
     }
 
     pub fn pronoun(&self) -> Pronoun {
         self.pronoun
+    }
+}
+
+#[derive(Debug)]
+pub struct Description<'ch> {
+    description: Option<&'ch str>,
+    pronoun: Pronoun,
+}
+
+impl<'ch> Display for Description<'ch> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(desc) = self.description {
+            desc.fmt(f)
+        } else {
+            write!(f, "{} looks perfectly normal", self.pronoun.subject())
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RoomDescription<'ch> {
+    room_description: Option<&'ch str>,
+    name: &'ch str,
+    formal_name: &'ch str,
+    // position: Position,
+}
+
+impl<'ch> Display for RoomDescription<'ch> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(desc) = self.room_description {
+            desc.fmt(f)
+        } else {
+            write!(f, "{} {{ {} }} is here.\r\n", self.formal_name, self.name)
+        }
     }
 }
