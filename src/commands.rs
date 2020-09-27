@@ -28,7 +28,7 @@ pub fn look(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
 ) {
-    if let Some(char) = conn.character.and_then(|idx| characters.get(idx)) {
+    if let Some(char) = characters.get(conn.character) {
         let room = &rooms[&char.in_room];
         let _ = conn.write(&room.name);
         let _ = conn.write(&room.exits);
@@ -79,7 +79,7 @@ fn move_char(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
 ) {
-    let char = &mut characters[conn.character.unwrap()];
+    let char = &mut characters[conn.character];
     if let Some(exit) = rooms
         .get(&char.in_room)
         .and_then(|room| room.exits.get(arguments))

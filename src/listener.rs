@@ -4,9 +4,9 @@ use smol::{fs, io, prelude::*, Async};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 
-use crate::character::Character;
+use crate::character::PlayerRecord;
 use crate::pronoun::Pronoun;
-use crate::Connection;
+use crate::ConnectionBuilder;
 
 #[derive(Debug)]
 pub enum LoginError {
@@ -62,7 +62,7 @@ async fn read_string(
     Ok(string)
 }
 
-async fn load_old_character(name: &str) -> Result<Option<Character>, LoadError> {
+async fn load_old_character(name: &str) -> Result<Option<PlayerRecord>, LoadError> {
     // FIXME: do this on a SEPARATE thread with its own async reactor dedicated to loading/saving files
     let pfile_path = Path::new("players").join(name).with_extension("json");
     match fs::File::open(pfile_path).await {
@@ -81,7 +81,7 @@ async fn load_old_character(name: &str) -> Result<Option<Character>, LoadError> 
     }
 }
 
-async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError> {
+async fn do_login(stream: &mut Async<TcpStream>) -> Result<PlayerRecord, LoginError> {
     let mut buf = [0u8; 160];
 
     stream.write_all(b"What is your name? ").await?;
@@ -101,8 +101,8 @@ async fn do_login(stream: &mut Async<TcpStream>) -> Result<Character, LoginError
 async fn do_character_old(
     stream: &mut Async<TcpStream>,
     mut buf: [u8; 160],
-    char: Character,
-) -> Result<Character, LoginError> {
+    char: PlayerRecord,
+) -> Result<PlayerRecord, LoginError> {
     stream.write_all(b"Password: ").await?;
     let password = read_string(&mut buf, stream, 160, None).await?;
     if bcrypt::verify(&password, &char.password())? {
@@ -116,7 +116,7 @@ async fn do_character_new(
     stream: &mut Async<TcpStream>,
     mut buf: [u8; 160],
     name: String,
-) -> Result<Character, LoginError> {
+) -> Result<PlayerRecord, LoginError> {
     let mut password = None;
     let mut password_confirmed = false;
     let mut pronoun = None;
@@ -166,24 +166,24 @@ async fn do_character_new(
     let pronoun = pronoun.unwrap_or(Pronoun::They); // Unwrapped and immutable
 
     log::info!("New character {}", name);
-    Ok(Character::new(name, pronoun, password))
+    Ok(PlayerRecord::new(name, pronoun, password))
 }
 
-pub fn listen(listener: Async<TcpListener>, sender: Sender<(Connection, Character)>) {
+pub fn listen(listener: Async<TcpListener>, sender: Sender<(ConnectionBuilder, PlayerRecord)>) {
     smol::block_on(async {
         loop {
             if let Ok((mut stream, addr)) = listener.accept().await {
                 let sender = sender.clone();
                 smol::spawn(async move {
                     match do_login(&mut stream).await {
-                        Ok(char) => {
+                        Ok(player) => {
                             if let Ok(stream) = stream.into_inner() {
-                                let connection = Connection::new(stream, addr);
+                                let connection = ConnectionBuilder::new(stream, addr);
                                 // FIXME: sender is a regular crossbeam-channel, not an async channel
                                 // is sender.send (potentially blocking) a bad move inside an async
                                 // block? Docs for `thread::sleep` say not to use it inside an async
                                 // block; maybe this is the same.
-                                let _ = sender.send((connection, char));
+                                let _ = sender.send((connection, player));
                             }
                         }
                         Err(e) => {

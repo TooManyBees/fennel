@@ -1,7 +1,7 @@
 use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use fnv::FnvHashMap as HashMap;
-use generational_arena::{Index, Arena};
+use generational_arena::Arena;
 use log;
 use std::io::ErrorKind;
 use std::net::TcpListener;
@@ -10,7 +10,10 @@ use std::time::{Duration, Instant};
 
 use fennel::commands::look;
 use fennel::util::take_command;
-use fennel::{define_commands, listen, lookup_command, Area, Character, Connection, Room, RoomId};
+use fennel::{
+    define_commands, listen, lookup_command, Area, Character, Connection, ConnectionBuilder,
+    PlayerRecord, Room, RoomId,
+};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -77,33 +80,42 @@ fn accept_new_connections(
     connections: &mut Arena<Connection>,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
-    receiver: &Receiver<(Connection, Character)>,
+    receiver: &Receiver<(ConnectionBuilder, PlayerRecord)>,
 ) {
-    while let Ok((mut conn, char)) = receiver.try_recv() {
-        // FIXME: there must be a better test than a name comparison. Should I use a UUID or something?
-        if let Some((char_index, _)) = characters.iter().find(|(_, c)| c.name() == char.name()) {
+    while let Ok((conn_builder, record)) = receiver.try_recv() {
+        let (player, char) = record.into_inner();
+
+        let mut conn = if let Some((conn_index, conn)) = connections
+            .iter()
+            .find(|(_, c)| c.player_name() == player.name())
+        {
+            let char = &characters[conn.character];
+            let existing_conn = connections.remove(conn_index).unwrap();
             log::info!(
-                "Connection regained from {} for {}",
-                conn.addr(),
+                "Connection overridden from {} to {} for {}",
+                existing_conn.addr(),
+                conn_builder.addr,
                 char.name()
             );
-            // Take control of the char
-            conn.character = Some(char_index);
-            if let Some((conn_idx, conn)) = connections
-                .iter_mut()
-                .find(|(_, conn)| conn.character == Some(char_index))
-            {
-                log::info!(
-                    "Connection taken over by {} for {}",
-                    conn.addr(),
-                    char.name()
-                );
-                let _ = conn.write(&"Disconnected");
-                let _ = conn.write_flush();
-                connections.remove(conn_idx);
-            }
+            conn_builder.logged_in(player, existing_conn.character)
+        } else if let Some((char_idx, char)) = characters
+            .iter()
+            .find(|(_, c)| c.name() == char.name() && c.id() == Default::default())
+        {
+            log::info!(
+                "Connection regained from {} for {}",
+                conn_builder.addr,
+                char.name()
+            );
+            let mut conn = conn_builder.logged_in(player, char_idx);
+            let _ = conn.write(&"Reconnecting...");
+            conn
         } else {
-            log::info!("New connection from {} for {}", conn.addr(), char.name());
+            log::info!(
+                "New connection from {} for {}",
+                conn_builder.addr,
+                char.name()
+            );
 
             // Ensure that the character's room still exists.
             let mut char = char;
@@ -112,15 +124,17 @@ fn accept_new_connections(
             }
 
             let char_idx = characters.insert(char);
-            conn.character = Some(char_idx);
-        }
+            conn_builder.logged_in(player, char_idx)
+        };
 
         look(&mut conn, "auto", characters, rooms);
         let _conn_idx = connections.insert(conn);
     }
 }
 
-fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io::Result<()> {
+fn game_loop(
+    connection_receiver: Receiver<(ConnectionBuilder, PlayerRecord)>,
+) -> std::io::Result<()> {
     let mut last_time: Instant;
     let mut connections: Arena<Connection> = Arena::new();
     let mut characters: Arena<Character> = Arena::new();
@@ -130,12 +144,6 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
     let (areas, rooms) = load_areas();
 
     // println!("{:?}\n\n{:?}", areas, rooms);
-
-    fn linkdead(idx: Index, conn: &mut Connection, characters: &mut Arena<Character>, mark_for_disconnect: &mut Vec<Index>) {
-        let char_name = conn.character.and_then(|idx| characters.get(idx)).map(|ch| ch.name());
-        log::info!("Connection went linkdead: {:?} from {}", char_name, conn.addr());
-        mark_for_disconnect.push(idx);
-    }
 
     loop {
         last_time = Instant::now();
@@ -157,11 +165,15 @@ fn game_loop(connection_receiver: Receiver<(Connection, Character)>) -> std::io:
         for (idx, conn) in &mut connections {
             match conn.read() {
                 Ok(input) if !input.is_empty() => conn.input = Some(input),
-                Ok(_) => linkdead(idx, conn, &mut characters, &mut mark_for_disconnect),
+                Ok(_) => {
+                    log::debug!("Marking linkdead {}: zero length input", conn.addr());
+                    mark_for_disconnect.push(idx);
+                }
                 Err(e) => {
                     match e.kind() {
                         ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset => {
-                            linkdead(idx, conn, &mut characters, &mut mark_for_disconnect);
+                            log::debug!("Marking linkdead {}: {}", conn.addr(), e);
+                            mark_for_disconnect.push(idx);
                         }
                         ErrorKind::WouldBlock => {} // explicitly okay no matter what happens to the catch-all branch
                         _ => log::warn!(

@@ -3,29 +3,48 @@ use std::fmt::Display;
 use std::io::{prelude::*, ErrorKind, Write};
 use std::net::{SocketAddr, TcpStream};
 
+use crate::Player;
+
+pub struct ConnectionBuilder {
+    pub stream: TcpStream,
+    pub addr: SocketAddr,
+}
+
+impl ConnectionBuilder {
+    pub fn new(stream: TcpStream, addr: SocketAddr) -> ConnectionBuilder {
+        ConnectionBuilder { stream, addr }
+    }
+
+    pub fn logged_in(self, player: Player, char_idx: Index) -> Connection {
+        Connection {
+            stream: self.stream,
+            addr: self.addr,
+            player,
+            character: char_idx,
+            in_buffer: [0; 256],
+            input: None,
+            output: vec![],
+        }
+    }
+}
+
 pub struct Connection {
     stream: TcpStream,
     addr: SocketAddr,
-    pub character: Option<Index>,
+    player: Player,
+    pub character: Index,
     in_buffer: [u8; 256],
     pub input: Option<String>, // TODO: do this better
     output: Vec<u8>,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream, addr: SocketAddr) -> Connection {
-        Connection {
-            stream,
-            addr,
-            character: None,
-            in_buffer: [0; 256],
-            input: None,
-            output: Vec::with_capacity(500),
-        }
-    }
-
     pub fn addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    pub fn player_name(&self) -> &str {
+        self.player.name()
     }
 
     pub fn write(&mut self, message: &dyn Display) -> std::io::Result<()> {

@@ -4,7 +4,7 @@
 enum ParseState {
     Begin,
     Unquoted,
-    Whitespace,
+    // Whitespace,
     DoubleQuote,
     SingleQuote,
     // Can expand into non-english quotes here too
