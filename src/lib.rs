@@ -8,7 +8,7 @@ mod room;
 pub mod util;
 
 pub use area::Area;
-pub use character::{Character, Player, PlayerRecord};
+pub use character::{CharId, Character, Player, PlayerRecord};
 pub use commands::{define_commands, lookup_command};
 pub use connection::{Connection, ConnectionBuilder};
 pub use listener::listen;

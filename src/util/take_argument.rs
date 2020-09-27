@@ -32,11 +32,7 @@ pub fn take_command(input: &str) -> Option<(&str, &str)> {
     }
 }
 
-pub fn take_argument(input: &str) -> Option<(&str, &str)> {
-    assert!(
-        input.ends_with('\n') || input.ends_with('\r'),
-        "take_argument input string must end with a CR or LF"
-    );
+pub fn take_argument(input: &str) -> (Option<&str>, &str) {
     let mut start_of_keyword = 0;
     let mut end_of_keyword = 0;
     let mut trim_off_remainder = 0;
@@ -44,9 +40,6 @@ pub fn take_argument(input: &str) -> Option<(&str, &str)> {
     for (idx, ch) in input.char_indices() {
         end_of_keyword = idx;
         match (ch, state) {
-            ('\n', ParseState::Begin) | ('\r', ParseState::Begin) => {
-                break;
-            }
             (_, ParseState::Begin) if ch.is_ascii_whitespace() => {}
             ('"', ParseState::Begin) => {
                 state = ParseState::DoubleQuote;
@@ -71,17 +64,21 @@ pub fn take_argument(input: &str) -> Option<(&str, &str)> {
             (_, ParseState::Unquoted) if ch.is_ascii_whitespace() => {
                 break;
             }
+            (_, ParseState::Unquoted) if idx + ch.len_utf8() >= input.len() => {
+                end_of_keyword += ch.len_utf8();
+                break;
+            }
             _ => {}
         }
     }
     if let ParseState::Begin = state {
-        return None;
+        return (None, "");
     }
     debug_assert!(start_of_keyword <= end_of_keyword);
     let (kw, rest) = input.split_at(end_of_keyword);
     let kw = &kw[start_of_keyword..];
     let rest = &rest[trim_off_remainder..];
-    Some((kw, rest))
+    (Some(kw), rest)
 }
 
 #[cfg(test)]
@@ -121,28 +118,30 @@ mod test {
             #[test]
             fn $name() {
                 let input = $input;
-                let kw = take_argument(input).map(|(kw, _rest)| kw);
+                let (kw, _) = take_argument(input);
                 assert_eq!(kw, $expected);
             }
         };
     }
 
     test_argument!(single_word, "hello\r\n", Some("hello"));
+    test_argument!(no_newline, "hello", Some("hello"));
     test_argument!(surrounding_whitespace, "    hello  \r\n", Some("hello"));
     test_argument!(single_quote, " 'up tree'\r\n", Some("up tree"));
     test_argument!(double_quote, " \"up tree\"\r\n", Some("up tree"));
     test_argument!(nested_single_quotes, " \"barry's account book\" barry\r\n", Some("barry's account book"));
     test_argument!(nested_double_quotes, " 'very \"fancy\" book' barry\r\n", Some("very \"fancy\" book"));
     test_argument!(all_whitespace, "    \r\n", None);
-    test_argument!(empty_input, "\r\n", None);
+    test_argument!(newline_input, "\r\n", None);
+    test_argument!(empty_input, "", None);
 
     #[test]
     fn repeated() {
         let input = "put \"important thing\" in \'big box\'  \r\n";
-        let (kw1, rest) = take_argument(input).unwrap();
-        let (kw2, rest) = take_argument(rest).unwrap();
-        let (kw3, rest) = take_argument(rest).unwrap();
-        let (kw4, _rest) = take_argument(rest).unwrap();
-        assert_eq!(&[kw1, kw2, kw3, kw4], &["put", "important thing", "in", "big box"]);
+        let (kw1, rest) = take_argument(input);
+        let (kw2, rest) = take_argument(rest);
+        let (kw3, rest) = take_argument(rest);
+        let (kw4, _rest) = take_argument(rest);
+        assert_eq!(&[kw1, kw2, kw3, kw4], &[Some("put"), Some("important thing"), Some("in"), Some("big box")]);
     }
 }

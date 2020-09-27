@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 use fennel::commands::look;
 use fennel::util::take_command;
 use fennel::{
-    define_commands, listen, lookup_command, Area, Character, Connection, ConnectionBuilder,
-    PlayerRecord, Room, RoomId,
+    define_commands, listen, lookup_command, Area, CharId, Character, Connection,
+    ConnectionBuilder, PlayerRecord, Room, RoomId,
 };
 
 static PULSE_PER_SECOND: u32 = 3;
@@ -46,14 +46,16 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
     }
 }
 
-fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
+fn load_areas() -> (Vec<Area>, HashMap<CharId, Character>, HashMap<RoomId, Room>) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
     let mut rooms = HashMap::default();
+    let mut npcs = HashMap::default();
     // FIXME: daaaaaaang this is ugly
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
         Ok(mut area_def) => {
+            let area_npcs = area_def.extract_npcs();
             let room_defs = area_def.extract_rooms();
 
             let area = Area::from_prototype(area_def);
@@ -61,9 +63,15 @@ fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
             areas.push(area);
             let area = &mut areas[area_idx];
 
+            for ch in area_npcs {
+                // TODO: warn about clobbering vnums
+                npcs.insert(ch.id(), ch);
+            }
+
             for room_def in room_defs {
                 let room = Room::from_prototype(room_def, area_idx);
                 let room_idx = room.id;
+                // TODO: warn about clobbering vnums
                 rooms.insert(room.id, room);
                 area.rooms.push(room_idx);
             }
@@ -73,7 +81,7 @@ fn load_areas() -> (Vec<Area>, HashMap<RoomId, Room>) {
         Err(e) => log::error!("Error loading area {:?}", e),
     }
     log::info!("Loading areas: success");
-    (areas, rooms)
+    (areas, npcs, rooms)
 }
 
 fn accept_new_connections(
@@ -141,9 +149,14 @@ fn game_loop(
     let mut mark_for_disconnect = Vec::new();
 
     let commands = define_commands();
-    let (areas, rooms) = load_areas();
+    let (areas, npcs, rooms) = load_areas();
 
-    // println!("{:?}\n\n{:?}", areas, rooms);
+    for npc in npcs.values() {
+        // TODO: oh no! the area won't work when a mob disappears, we won't have the index to remove it D:
+        characters.insert(npc.clone());
+    }
+
+    println!("{:?}\n\n{:?}\n\n{:?}", areas, npcs, rooms);
 
     loop {
         last_time = Instant::now();

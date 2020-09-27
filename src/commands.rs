@@ -1,3 +1,4 @@
+use crate::util::take_argument;
 use crate::{Character, Connection, Room, RoomId};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::Arena;
@@ -24,16 +25,40 @@ pub fn define_commands() -> Vec<CommandEntry> {
 
 pub fn look(
     conn: &mut Connection,
-    _arguments: &str,
+    arguments: &str,
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
 ) {
-    if let Some(char) = characters.get(conn.character) {
-        let room = &rooms[&char.in_room];
-        let _ = conn.write(&room.name);
-        let _ = conn.write(&room.exits);
-        let _ = conn.write(&room.description);
-        // let _ = conn.write(&"");
+    let char = &characters[conn.character];
+    let room = &rooms[&char.in_room];
+    let (arg, _) = take_argument(arguments);
+    // FIXME: Okay, we're absolutely going with intrusive lists for chars/objs/etc in the room. Just not now.
+    match arg {
+        Some("auto") | None => {
+            let _ = conn.write(&room.name);
+            let _ = conn.write(&room.exits);
+            let _ = conn.write(&room.description);
+            for (_, ch) in characters
+                .iter()
+                .filter(|(_, ch)| ch.in_room == char.in_room)
+            {
+                let _ = conn.write(&ch.room_description());
+            }
+        }
+        Some(a) => {
+            if let Some((_, target)) = characters
+                .iter()
+                .find(|(_, ch)| ch.name().starts_with(a) && ch.in_room == char.in_room)
+            {
+                let _ = conn.write(&format!(
+                    "You look at {}.\n{}",
+                    target.formal_name(),
+                    target.description()
+                ));
+            } else {
+                let _ = write!(conn, "You don't see any {} here.\n", a);
+            }
+        }
     }
 }
 

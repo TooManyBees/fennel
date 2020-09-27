@@ -55,14 +55,13 @@ impl PlayerRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
 pub struct Character {
     #[serde(default, skip_serializing)]
     id: CharId,
     name: String,
-    #[serde(rename = "formal-name")]
     formal_name: String,
-    #[serde(rename = "room-description")]
     room_description: String,
     #[serde(default)]
     description: String,
@@ -79,6 +78,18 @@ impl Character {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn formal_name(&self) -> &str {
+        &self.formal_name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn room_description(&self) -> &str {
+        &self.room_description
     }
 
     pub fn pronoun(&self) -> Pronoun {

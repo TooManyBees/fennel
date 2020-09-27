@@ -1,6 +1,19 @@
 name = "Default"
 author = "Bees"
 
+[[npcs]]
+id = 1
+name = "rhane"
+formal-name = "Rhane, knight of the Willow Kingdom"
+room-description = "A tired faerie slumps against the hilt of her greatsword."
+description = '''
+She doesn't bother to make eye contact as she asks you,
+"Why did you come to this forsaken place?"
+Do you have an answer for her?
+'''
+pronoun = "She"
+in-room = 2 # TODO: I think we'll want a reset mechanism instead of going by this field (which is for player chars)
+
 [[rooms]]
 id = 1
 name = "The first room"
