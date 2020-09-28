@@ -119,10 +119,9 @@ async fn do_character_new(
     let mut password = None;
     let mut password_confirmed = false;
     let mut pronoun = None;
-    stream.write_all(b"Password: ").await?;
+    stream.write_all(b"Give us a password. Leading and trailing whitespace will be removed; *interior* whitespace will be preserved. Be careful.\r\nPassword: ").await?;
     while password.is_none() {
         let maybe_password = read_string(&mut buf, stream, 160, None).await?;
-        // TODO: test for whitespace inside password too
         if maybe_password.is_empty() {
             stream
                 .write_all(b"You can't leave your password blank. Password: ")

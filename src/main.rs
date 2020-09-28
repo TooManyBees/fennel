@@ -64,14 +64,18 @@ fn load_areas() -> (Vec<Area>, HashMap<CharId, Character>, HashMap<RoomId, Room>
             let area = &mut areas[area_idx];
 
             for ch in area_npcs {
-                // TODO: warn about clobbering vnums
+                if npcs.contains_key(&ch.id()) {
+                    log::warn!("Loading areas: clobbered existing NPC {}", ch.id());
+                }
                 npcs.insert(ch.id(), ch);
             }
 
             for room_def in room_defs {
                 let room = Room::from_prototype(room_def, area_idx);
+                if rooms.contains_key(&room.id) {
+                    log::warn!("Loading areas: clobbered existing room {}", room.id);
+                }
                 let room_idx = room.id;
-                // TODO: warn about clobbering vnums
                 rooms.insert(room.id, room);
                 area.rooms.push(room_idx);
             }
@@ -160,7 +164,7 @@ fn game_loop(
     }
 
     for npc in npcs.values() {
-        // TODO: oh no! the area won't work when a mob disappears, we won't have the index to remove it D:
+        // FIXME: oh no! the area won't work when a mob disappears, we won't have the index to remove it D:
         let idx = characters.insert(npc.clone());
         let in_room = room_chars
             .get_mut(&npc.in_room)

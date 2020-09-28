@@ -4,13 +4,6 @@ use fnv::FnvHashMap as HashMap;
 use generational_arena::{Arena, Index};
 use std::io::{Result as IoResult, Write};
 
-// pub enum Position {
-//     Asleep,
-//     Resting,
-//     Ready,
-//     Fighting,
-// }
-
 pub type CommandFn = fn(
     &mut Connection,
     &str,

@@ -139,7 +139,11 @@ impl<'ch> Display for Description<'ch> {
         if let Some(desc) = self.description {
             desc.fmt(f)
         } else {
-            write!(f, "{} looks perfectly normal", self.pronoun.subject())
+            write!(
+                f,
+                "You don't see anything unusual about {}",
+                self.pronoun.object()
+            )
         }
     }
 }
