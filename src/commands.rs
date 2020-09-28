@@ -89,7 +89,7 @@ pub fn look(
             if let Some(target) = in_room
                 .iter()
                 .filter_map(|idx| characters.get(*idx))
-                .find(|ch| ch.name().starts_with(a))
+                .find(|ch| ch.keywords().iter().any(|kw| kw.starts_with(a)))
             {
                 // TODO: if self, "you look at yourself"...
                 write!(

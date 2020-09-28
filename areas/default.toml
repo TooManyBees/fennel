@@ -3,7 +3,7 @@ author = "Bees"
 
 [[npcs]]
 id = 1
-name = "rhane"
+keywords = ["rhane", "knight", "tired", "faerie"]
 formal-name = "Rhane, knight of the Willow Kingdom"
 room-description = "A tired faerie slumps against the hilt of her greatsword."
 description = '''

@@ -2,7 +2,9 @@
   "name": "bees",
   "password": "$2b$04$Bcd.itFya93aJeeZlxEDa.429tkNzBpx3bQVDrhRAaxDgvBFXhZva",
   "character": {
-    "name": "bees",
+    "keywords": [
+      "bees"
+    ],
     "formal-name": "Bees",
     "room-description": "",
     "pronoun": "They"

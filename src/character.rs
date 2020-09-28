@@ -40,12 +40,14 @@ impl PlayerRecord {
     }
 
     pub fn new(name: String, pronoun: Pronoun, password: String) -> PlayerRecord {
+        let formal_name = name.clone();
+        let keywords = vec![name.clone()];
         PlayerRecord {
-            name: name.clone(),
+            name,
             password,
             character: Character {
-                name: name.clone(),
-                formal_name: name.clone(),
+                keywords,
+                formal_name,
                 pronoun,
                 ..Default::default()
             },
@@ -79,7 +81,7 @@ impl PlayerRecord {
 pub struct Character {
     #[serde(default, skip_serializing)]
     id: CharId,
-    name: String,
+    keywords: Vec<String>,
     formal_name: String,
     #[serde(skip_serializing)]
     room_description: Option<String>,
@@ -95,8 +97,8 @@ impl Character {
         self.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn keywords(&self) -> &[String] {
+        &self.keywords
     }
 
     pub fn formal_name(&self) -> &str {
@@ -113,7 +115,10 @@ impl Character {
     pub fn room_description(&self) -> RoomDescription {
         RoomDescription {
             room_description: self.room_description.as_deref(),
-            name: &self.name,
+            name: &self
+                .keywords
+                .get(0)
+                .expect("Missing first keyword for name"),
             formal_name: &self.formal_name,
         }
     }

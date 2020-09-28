@@ -94,29 +94,26 @@ fn accept_new_connections(
     while let Ok((conn_builder, record)) = receiver.try_recv() {
         let (player, char) = record.into_inner();
 
-        let mut conn = if let Some((conn_index, conn)) = connections
+        let mut conn = if let Some((conn_index, _existing_conn)) = connections
             .iter()
             .find(|(_, c)| c.player_name() == player.name())
         {
-            let char = characters
-                .get(conn.character)
-                .expect("Unwrapped None character");
             let existing_conn = connections.remove(conn_index).unwrap();
             log::info!(
                 "Connection overridden from {} to {} for {}",
                 existing_conn.addr(),
                 conn_builder.addr,
-                char.name()
+                player.name()
             );
             conn_builder.logged_in(player, existing_conn.character)
-        } else if let Some((char_idx, char)) = characters
+        } else if let Some((char_idx, _char)) = characters
             .iter()
-            .find(|(_, c)| c.name() == char.name() && c.id() == Default::default())
+            .find(|(_, c)| c.keywords()[0] == player.name() && c.id() == Default::default())
         {
             log::info!(
                 "Connection regained from {} for {}",
                 conn_builder.addr,
-                char.name()
+                player.name()
             );
             let mut conn = conn_builder.logged_in(player, char_idx);
             let _ = write!(&mut conn, "Reconnecting...\n");
@@ -125,7 +122,7 @@ fn accept_new_connections(
             log::info!(
                 "New connection from {} for {}",
                 conn_builder.addr,
-                char.name()
+                player.name()
             );
 
             // Ensure that the character's room still exists.
