@@ -51,8 +51,9 @@ impl Connection {
         self.player.name()
     }
 
-    pub fn write_flush(&mut self) -> IoResult<()> {
+    pub fn write_flush(&mut self, prompt: &str) -> IoResult<()> {
         if !self.output.is_empty() {
+            write!(self.output, "\r\n{}", prompt);
             self.stream.write_all(&self.output)?;
             self.output.clear(); // TODO: find a way to shrink capacity down to 500 if poss?
         }
@@ -70,14 +71,14 @@ impl Connection {
 
 impl Write for Connection {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-        self.stream.write(buf)
+        self.output.write(buf)
     }
 
     fn flush(&mut self) -> IoResult<()> {
-        self.stream.flush()
+        self.output.flush()
     }
 
     fn write_fmt(&mut self, fmt: Arguments<'_>) -> IoResult<()> {
-        self.stream.write_fmt(fmt)
+        self.output.write_fmt(fmt)
     }
 }

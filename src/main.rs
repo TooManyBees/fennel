@@ -237,14 +237,14 @@ fn game_loop(
                         write!(conn, "I have no idea what that means!")
                     };
                 } else {
-                    // TODO: user just hit enter; still display prompt and all that
+                    write!(conn, "\r\n");
                 }
             }
         }
 
         // handle output
         for (_idx, conn) in &mut connections {
-            let _ = conn.write_flush();
+            let _ = conn.write_flush("You are who you are; You are where you are; The time is now>");
         }
 
         let now = Instant::now();

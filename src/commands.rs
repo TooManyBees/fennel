@@ -64,7 +64,7 @@ pub fn look(
         Some("auto") | None => {
             write!(
                 conn,
-                "{}\n{}\n{}\n",
+                "{}\r\n{}\r\n{}\r\n",
                 &room.name, &room.exits, &room.description
             )?;
             let self_idx = conn.character;
@@ -75,7 +75,7 @@ pub fn look(
                     None
                 }
             }) {
-                write!(conn, "{}\n", ch.room_description())?;
+                write!(conn, "{}\r\n", ch.room_description())?;
             }
         }
         Some(a) => {
@@ -87,12 +87,12 @@ pub fn look(
                 // TODO: if self, "you look at yourself"...
                 write!(
                     conn,
-                    "You look at {}.\n{}\n",
+                    "You look at {}.\r\n{}\r\n",
                     target.formal_name(),
                     target.description()
                 )?;
             } else {
-                write!(conn, "You don't see any {} here.\n", a)?;
+                write!(conn, "You don't see any {} here.\r\n", a)?;
             }
         }
     }
@@ -162,7 +162,7 @@ fn move_char(
         // first (since we already have it)
         look(conn, "auto", characters, rooms, room_chars)?;
     } else {
-        write!(conn, "You can't go {}.", arguments)?;
+        write!(conn, "You can't go {}.\r\n", arguments)?;
     }
     Ok(())
 }

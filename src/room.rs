@@ -83,7 +83,7 @@ impl Room {
         Room {
             id: room_def.id,
             name: room_def.name,
-            description: room_def.description,
+            description: room_def.description.trim().to_string(),
             exits: room_def.exits,
             area,
             ..Default::default()
