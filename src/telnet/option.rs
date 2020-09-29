@@ -71,9 +71,17 @@ telnet_option!(
     37 => Authentication,
     38 => Encryption,
     39 => NewEnvironment,
+    42 => Charset,
+    68 => MSLP,
+    69 => MSDP,
     70 => MSSP,
     85 => Compress,
     86 => Compress2,
+    87 => Compress3,
+    90 => MSP,
+    91 => MXP,
     93 => ZMP,
+    200 => ATCP,
+    201 => GMCP,
     255 => EXOPL
 );
