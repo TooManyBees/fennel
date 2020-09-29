@@ -62,6 +62,8 @@ impl PlayerRecord {
         }
     }
 
+    pub fn name(self) -> String { self.name }
+
     pub fn password(&self) -> &str {
         &self.password
     }

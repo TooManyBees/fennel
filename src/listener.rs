@@ -10,7 +10,7 @@ use crate::ConnectionBuilder;
 #[derive(Debug)]
 pub enum LoginError {
     NoName,
-    WrongPassword,
+    WrongPassword(String),
     IO(io::Error),
     LoadError(LoadError),
     Bcrypt(BcryptError),
@@ -83,7 +83,7 @@ async fn load_old_character(name: &str) -> Result<Option<PlayerRecord>, LoadErro
 async fn do_login(stream: &mut Async<TcpStream>) -> Result<PlayerRecord, LoginError> {
     let mut buf = [0u8; 160];
 
-    stream.write_all(b"What is your name? ").await?;
+    stream.write_all(b"What is your name? \xFF\xF9").await?;
     let name = read_string(&mut buf, stream, 32, None).await?;
     if name.is_empty() {
         return Err(LoginError::NoName);
@@ -102,12 +102,12 @@ async fn do_character_old(
     mut buf: [u8; 160],
     char: PlayerRecord,
 ) -> Result<PlayerRecord, LoginError> {
-    stream.write_all(b"Password: ").await?;
+    stream.write_all(b"Password: \xFF\xF9").await?;
     let password = read_string(&mut buf, stream, 160, None).await?;
     if bcrypt::verify(&password, &char.password())? {
         Ok(char)
     } else {
-        Err(LoginError::WrongPassword)
+        Err(LoginError::WrongPassword(char.name()))
     }
 }
 
@@ -119,12 +119,12 @@ async fn do_character_new(
     let mut password = None;
     let mut password_confirmed = false;
     let mut pronoun = None;
-    stream.write_all(b"Give us a password. Leading and trailing whitespace will be removed; *interior* whitespace will be preserved. Be careful.\r\nPassword: ").await?;
+    stream.write_all(b"Give us a password. Leading and trailing whitespace will be removed; *interior* whitespace will be preserved. Be careful.\r\nPassword: \xFF\xF9").await?;
     while password.is_none() {
         let maybe_password = read_string(&mut buf, stream, 160, None).await?;
         if maybe_password.is_empty() {
             stream
-                .write_all(b"You can't leave your password blank. Password: ")
+                .write_all(b"You can't leave your password blank. Password: \xFF\xF9")
                 .await?;
             continue;
         }
@@ -133,19 +133,19 @@ async fn do_character_new(
     }
     let password = password.unwrap(); // Unwrapped and immutable
 
-    stream.write_all(b"Confirm password: ").await?;
+    stream.write_all(b"Confirm password: \xFF\xF9").await?;
     while !password_confirmed {
         let maybe_same_password = read_string(&mut buf, stream, 160, None).await?;
         password_confirmed = bcrypt::verify(maybe_same_password, &password)?;
         if !password_confirmed {
             stream
-                .write_all(b"Password doesn't match. Try again: ")
+                .write_all(b"Password doesn't match. Try again: \xFF\xF9")
                 .await?;
         }
     }
 
     stream
-        .write_all(b"How do we refer to you (it/he/she/they)?")
+        .write_all(b"How do we refer to you (it/he/she/they)? \xFF\xF9")
         .await?;
     while pronoun.is_none() {
         let maybe_pronoun = read_string(&mut buf, stream, 32, None).await?;
@@ -156,7 +156,7 @@ async fn do_character_new(
             "they" => pronoun = Some(Pronoun::They),
             _ => {
                 stream
-                    .write_all(b"That's not an option we know.\r\nPick again: ")
+                    .write_all(b"That's not an option we know.\r\nPick again: \xFF\xF9")
                     .await?
             }
         }
@@ -186,20 +186,26 @@ pub fn listen(listener: Async<TcpListener>, sender: Sender<(ConnectionBuilder, P
                         }
                         Err(e) => {
                             let _ = match e {
-                                LoginError::NoName => stream.write_all(b"No name given, bye!").await,
-                                LoginError::WrongPassword => stream.write_all(b"Wrong password, bye!").await,
-                                LoginError::IO(_) => stream.write_all(b"Error encountered, bye!").await,
+                                LoginError::NoName => stream.write_all(b"No name given, bye!\r\n\xFF\xF9").await,
+                                LoginError::WrongPassword(name) => {
+                                    log::info!("Failed password attempt on {}", name);
+                                    stream.write_all(b"Wrong password, bye!\r\n\xFF\xF9").await
+                                },
+                                LoginError::IO(e) => {
+                                    log::error!("{}", e);
+                                    stream.write_all(b"Error encountered, bye!\r\n\xFF\xF9").await
+                                },
                                 LoginError::LoadError(LoadError::Unparsable(name)) => {
                                     log::error!("Error loading pfile {}: unparsable", name);
-                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.").await
+                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
                                 }
                                 LoginError::LoadError(LoadError::IO(e, name)) => {
                                     log::error!("Error loading pfile {}: {}", name, e);
-                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.").await
+                                    stream.write_all(b"Your character couldn't be loaded. Disconnecting for safety.\r\n\xFF\xF9").await
                                 }
                                 LoginError::Bcrypt(e) => {
                                     log::error!("Error verifying password {}", e);
-                                    stream.write_all(b"Error encountered, bye!").await
+                                    stream.write_all(b"Error encountered, bye!\r\n\xFF\xF9").await
                                 },
                             };
                             let _ = stream.close().await;
