@@ -2,6 +2,7 @@ use bcrypt::BcryptError;
 use crossbeam_channel::Sender;
 use smol::{fs, io, prelude::*, Async};
 use std::net::{TcpListener, TcpStream};
+use std::io::Write;
 
 use crate::character::PlayerRecord;
 use crate::pronoun::Pronoun;
@@ -44,28 +45,70 @@ pub enum LoadError {
     Unparsable(String),
 }
 
+fn respond_to_event(event: TelnetEvent) -> (Option<TelnetEvent>, Option<TelnetEvent>) {
+    match event {
+        _ => (None, None),
+    }
+}
+
 async fn read_string(
     stream: &mut Telnet<Async<TcpStream>>,
     timeout: Option<usize>,
 ) -> Result<String, io::Error> {
+    let mut to_host = Vec::new();
+    let mut back_to_client = Vec::new();
+    let mut v = Vec::new();
     loop {
-        match stream.read().await {
-            Ok(TelnetEvent::Data(data)) => {
-                let v = Vec::from(data);
-                let string = String::from_utf8(v)
-                    .map_err(|_| std::io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
-                return Ok(string.trim().to_string());
+        let events = stream.read().await?;
+
+        for event in events {
+            match event {
+                TelnetEvent::Data(data) => v.extend_from_slice(&data),
+                TelnetEvent::Negotiation(a, o) => {
+                    log::debug!("Telnet negotiation {:?} {:?}", a, o);
+                    let (info, response) = respond_to_event(TelnetEvent::Negotiation(a, o));
+                    if let Some(response) = response {
+                        back_to_client.push(response);
+                    }
+                    if let Some(info) = info {
+                        to_host.push(info);
+                    }
+                }
+                TelnetEvent::Subnegotiation(o, data) => {
+                    log::debug!("Telnet subnegotiation {:?} {:X?}", &o, &data);
+                    let (info, response) = respond_to_event(TelnetEvent::Subnegotiation(o, data));
+                    if let Some(response) = response {
+                        back_to_client.push(response);
+                    }
+                    if let Some(info) = info {
+                        to_host.push(info);
+                    }
+                }
+                _ => {}
             }
-            Ok(TelnetEvent::Negotiation(n, o)) => {
-                log::debug!("Telnet negotiation {:?} {:?}", n, o);
+        }
+
+        if !back_to_client.is_empty() {
+            let mut response_buf = Vec::new();
+            for event in &back_to_client {
+                match event {
+                    TelnetEvent::Negotiation(a, o) => {
+                        stream.negotiate(&mut response_buf, *a, *o);
+                    }
+                    TelnetEvent::Subnegotiation(o, data) => {
+                        stream.subnegotiate(&mut response_buf, *o, data);
+                    }
+                    _ => unreachable!(),
+                }
             }
-            Ok(TelnetEvent::Subnegotiation(o, data)) => {
-                log::debug!("Telnet subnegotation {:?} {:X?}", o, data);
-            }
-            Ok(TelnetEvent::Error(s)) => log::debug!("Telnet error: {}", s),
-            Ok(TelnetEvent::NoData) | Ok(TelnetEvent::TimedOut) => {},
-            Ok(TelnetEvent::UnknownIAC(iac)) => {},
-            Err(e) => log::debug!("Telnet io error: {}", e),
+            back_to_client.clear();
+            stream.write(&response_buf).await?;
+        }
+
+        if !v.is_empty() {
+            let string = String::from_utf8(v)
+                .map_err(|_| std::io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8"))?;
+            return Ok(string.trim().to_string());
         }
     }
 }

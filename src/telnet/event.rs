@@ -46,4 +46,8 @@ impl TelnetEventQueue {
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
+
+    pub fn drain(&mut self) -> LinkedList<TelnetEvent> {
+        self.queue.split_off(0)
+    }
 }

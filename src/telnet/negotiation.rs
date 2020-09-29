@@ -5,7 +5,7 @@ use super::byte::*;
 ///
 /// Actions for telnet negotiation.
 ///
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum NegotiationAction {
     Will, Wont, Do, Dont
 }

@@ -12,6 +12,7 @@ use std::net::TcpStream;
 use std::io::{self, ErrorKind, Read, Write};
 use smol::{Async};
 use smol::prelude::{AsyncReadExt, AsyncWriteExt};
+use std::collections::LinkedList;
 
 #[derive(Debug)]
 enum ProcessState {
@@ -235,6 +236,21 @@ impl<S> Telnet<S> {
 
         Box::from(data)
     }
+
+    pub fn negotiate<T: Write>(&self, writable: &mut T, action: NegotiationAction, opt: TelnetOption) {
+        let buf: &[u8] = &[BYTE_IAC, action.to_byte(), opt.to_byte()];
+        writable.write(buf).expect("Error sending negotiation");
+    }
+
+    pub fn subnegotiate<T: Write>(&self, writable: &mut T, opt: TelnetOption, data: &[u8]) {
+        let buf: &[u8] = &[BYTE_IAC, BYTE_SB, opt.to_byte()];
+        writable.write(buf).expect("Error sending subnegotiation (START)");
+
+        writable.write(data).expect("Error sending subnegotiation (DATA)");
+
+        let buf: &[u8] = &[BYTE_IAC, BYTE_SE];
+        writable.write(buf).expect("Error sending subnegotiation (END)");
+    }
 }
 
 impl Telnet<TcpStream> {
@@ -267,7 +283,7 @@ impl Telnet<TcpStream> {
 
     }
 
-    pub fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+    pub fn write_escaped(&mut self, data: &[u8]) -> io::Result<usize> {
         let mut write_size = 0;
 
         let mut start = 0;
@@ -288,19 +304,8 @@ impl Telnet<TcpStream> {
         Ok(write_size)
     }
 
-    pub fn negotiate(&mut self, action: NegotiationAction, opt: TelnetOption) {
-        let buf: &[u8] = &[BYTE_IAC, action.to_byte(), opt.to_byte()];
-        self.stream.write(buf).expect("Error sending negotiation");
-    }
-
-    pub fn subnegotiate(&mut self, opt: TelnetOption, data: &[u8]) {
-        let buf: &[u8] = &[BYTE_IAC, BYTE_SB, opt.to_byte()];
-        self.stream.write(buf).expect("Error sending subnegotiation (START)");
-
-        self.stream.write(data).expect("Error sending subnegotiation (DATA)");
-
-        let buf: &[u8] = &[BYTE_IAC, BYTE_SE];
-        self.stream.write(buf).expect("Error sending subnegotiation (END)");
+    pub fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.stream.write(data)
     }
 }
 
@@ -309,7 +314,7 @@ impl Telnet<Async<TcpStream>> {
         self.stream
     }
 
-    pub async fn read(&mut self) -> io::Result<TelnetEvent> {
+    pub async fn read(&mut self) -> io::Result<LinkedList<TelnetEvent>> {
         while self.event_queue.is_empty() {
             // Read bytes to the buffer
             match self.stream.read(&mut self.buffer).await {
@@ -322,16 +327,10 @@ impl Telnet<Async<TcpStream>> {
             self.process();
         }
 
-        // Return an event
-        Ok(
-            match self.event_queue.take_event() {
-                Some(x) => x,
-                None => TelnetEvent::Error("Internal Queue error".to_string())
-            }
-        )
+        Ok(self.event_queue.drain())
     }
 
-    pub async fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+    pub async fn write_escaped(&mut self, data: &[u8]) -> io::Result<usize> {
         let mut write_size = 0;
 
         let mut start = 0;
@@ -352,18 +351,7 @@ impl Telnet<Async<TcpStream>> {
         Ok(write_size)
     }
 
-    pub async fn negotiate(&mut self, action: NegotiationAction, opt: TelnetOption) {
-        let buf: &[u8] = &[BYTE_IAC, action.to_byte(), opt.to_byte()];
-        self.stream.write(buf).await.expect("Error sending negotiation");
-    }
-
-    pub async fn subnegotiate(&mut self, opt: TelnetOption, data: &[u8]) {
-        let buf: &[u8] = &[BYTE_IAC, BYTE_SB, opt.to_byte()];
-        self.stream.write(buf).await.expect("Error sending subnegotiation (START)");
-
-        self.stream.write(data).await.expect("Error sending subnegotiation (DATA)");
-
-        let buf: &[u8] = &[BYTE_IAC, BYTE_SE];
-        self.stream.write(buf).await.expect("Error sending subnegotiation (END)");
+    pub async fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        self.stream.write(data).await
     }
 }
