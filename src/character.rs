@@ -15,69 +15,6 @@ impl Display for CharId {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Player {
-    name: String,
-    password: String,
-}
-
-impl Player {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PlayerRecord {
-    name: String,
-    password: String,
-    character: Character,
-}
-
-impl PlayerRecord {
-    pub fn file_path(name: &str) -> PathBuf {
-        Path::new("players").join(name).with_extension("json")
-    }
-
-    pub fn new(name: String, pronoun: Pronoun, password: String) -> PlayerRecord {
-        let formal_name = name.clone();
-        let keywords = vec![name.clone()];
-        PlayerRecord {
-            name,
-            password,
-            character: Character {
-                keywords,
-                formal_name,
-                pronoun,
-                ..Default::default()
-            },
-        }
-    }
-
-    pub fn from_player(player: Player, character: Character) -> PlayerRecord {
-        PlayerRecord {
-            name: player.name,
-            password: player.password,
-            character,
-        }
-    }
-
-    pub fn name(self) -> String { self.name }
-
-    pub fn password(&self) -> &str {
-        &self.password
-    }
-
-    pub fn into_inner(self) -> (Player, Character) {
-        let player = Player {
-            name: self.name,
-            password: self.password,
-        };
-        let character = self.character;
-        (player, character)
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Character {
@@ -95,6 +32,15 @@ pub struct Character {
 }
 
 impl Character {
+    pub fn new_player(keywords: Vec<String>, formal_name: String, pronoun: Pronoun, ) -> Self {
+        Character {
+            keywords,
+            formal_name,
+            pronoun,
+            ..Default::default()
+        }
+    }
+
     pub fn id(&self) -> CharId {
         self.id
     }
