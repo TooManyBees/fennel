@@ -19,6 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.5.6"
 fnv = "1.0.3"
+intrusive-collections = "0.9.0"
 
 [dependencies.getrandom]
 features = ["std"] # Prevents a build error on windows. When bcrypt requires getrandom 0.2, this won't be necessary.

@@ -2,6 +2,7 @@ use crossbeam_channel::{bounded, Receiver};
 use femme::{self, LevelFilter};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::{Arena, Index};
+use intrusive_collections::{LinkedList, LinkedListLink};
 use log;
 use std::io::{ErrorKind, Write};
 use std::net::TcpListener;
@@ -11,9 +12,11 @@ use std::time::{Duration, Instant};
 use fennel::commands::look;
 use fennel::util::take_command;
 use fennel::{
-    define_commands, listen, lookup_command, Area, CharId, Character, Connection,
-    ConnectionBuilder, PlayerRecord, Room, RoomId,
+    define_commands, listen, lookup_command, AllobjectsAdapter, Area, CharId, Character,
+    Connection, ConnectionBuilder, Object, ObjectDef, ObjectId, ObjectInRoomAdapter, PlayerRecord,
+    Room, RoomId,
 };
+use std::rc::Rc;
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -46,16 +49,23 @@ fn audit_room_exits(rooms: &mut HashMap<RoomId, Room>) {
     }
 }
 
-fn load_areas() -> (Vec<Area>, HashMap<CharId, Character>, HashMap<RoomId, Room>) {
+fn load_areas() -> (
+    Vec<Area>,
+    HashMap<CharId, Character>,
+    HashMap<ObjectId, ObjectDef>,
+    HashMap<RoomId, Room>,
+) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
     let mut rooms = HashMap::default();
+    let mut object_defs = HashMap::default();
     let mut npcs = HashMap::default();
     // FIXME: daaaaaaang this is ugly
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
         Ok(mut area_def) => {
             let area_npcs = area_def.extract_npcs();
+            let area_objects = area_def.extract_objects();
             let room_defs = area_def.extract_rooms();
 
             let area = Area::from_prototype(area_def);
@@ -68,6 +78,10 @@ fn load_areas() -> (Vec<Area>, HashMap<CharId, Character>, HashMap<RoomId, Room>
                     log::warn!("Loading areas: clobbered existing NPC {}", ch.id());
                 }
                 npcs.insert(ch.id(), ch);
+            }
+
+            for obj_def in area_objects {
+                object_defs.insert(obj_def.id, obj_def);
             }
 
             for room_def in room_defs {
@@ -85,7 +99,7 @@ fn load_areas() -> (Vec<Area>, HashMap<CharId, Character>, HashMap<RoomId, Room>
         Err(e) => log::error!("Error loading area {:?}", e),
     }
     log::info!("Loading areas: success");
-    (areas, npcs, rooms)
+    (areas, npcs, object_defs, rooms)
 }
 
 fn accept_new_connections(
@@ -93,6 +107,7 @@ fn accept_new_connections(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
     receiver: &Receiver<(ConnectionBuilder, PlayerRecord)>,
 ) {
     while let Ok((conn_builder, record)) = receiver.try_recv() {
@@ -139,11 +154,14 @@ fn accept_new_connections(
                 .get_mut(&char.in_room)
                 .expect("Unwrapped None room chars");
             let char_idx = characters.insert(char);
+            characters
+                .get_mut(char_idx)
+                .map(|char| char.set_index(char_idx));
             in_room.push(char_idx);
             conn_builder.logged_in(player, char_idx)
         };
 
-        let _ = look(&mut conn, "auto", characters, rooms, room_chars);
+        let _ = look(&mut conn, "auto", characters, rooms, room_chars, room_objs);
         let _conn_idx = connections.insert(conn);
     }
 }
@@ -154,40 +172,47 @@ fn game_loop(
     let mut last_time: Instant;
     let mut connections: Arena<Connection> = Arena::new();
     let mut characters: Arena<Character> = Arena::new();
+    let mut objects = LinkedList::new(AllobjectsAdapter::new());
     let mut mark_for_disconnect = Vec::new();
 
     let commands = define_commands();
-    let (areas, npcs, rooms) = load_areas();
+    let (areas, npcs, object_defs, rooms) = load_areas();
     let mut room_chars: HashMap<RoomId, Vec<Index>> = HashMap::default();
+    let mut room_objs: HashMap<RoomId, LinkedList<ObjectInRoomAdapter>> = HashMap::default();
     for key in rooms.keys() {
         room_chars.insert(*key, vec![]);
+        room_objs.insert(*key, Default::default());
     }
 
     for npc in npcs.values() {
-        // FIXME: oh no! the area won't work when a mob disappears, we won't have the index to remove it D:
         let idx = characters.insert(npc.clone());
+        characters.get_mut(idx).map(|char| char.set_index(idx));
         let in_room = room_chars
             .get_mut(&npc.in_room)
             .expect("Unwrapped None room chars");
         in_room.push(idx);
     }
 
-    println!("{:?}\n\n{:?}\n\n{:?}", areas, npcs, rooms);
+    // FIXME: hackity hack-hack
+    for room in rooms.values() {
+        for id in &room.object_ids {
+            let obj = Rc::new(Object::from_prototype(&object_defs[id]));
+            objects.push_front(obj.clone());
+            room_objs.get_mut(&room.id).unwrap().push_front(obj);
+        }
+    }
+
+    println!("{:?}\n\n{:?}\n\n{:?}\n\n{:?}", areas, npcs, objects, rooms);
 
     loop {
         last_time = Instant::now();
-
-        // for (idx, conn) in &connections {
-        //     if conn.character.is_none() {
-        //         mark_for_disconnect.push(idx);
-        //     }
-        // }
 
         accept_new_connections(
             &mut connections,
             &mut characters,
             &rooms,
             &mut room_chars,
+            &mut room_objs,
             &connection_receiver,
         );
 
@@ -232,7 +257,14 @@ fn game_loop(
             if let Some(input) = conn.input.take() {
                 if let Some((command, rest)) = take_command(&input) {
                     let _ = if let Some(cmd) = lookup_command(&commands, command) {
-                        cmd(conn, rest, &mut characters, &rooms, &mut room_chars)
+                        cmd(
+                            conn,
+                            rest,
+                            &mut characters,
+                            &rooms,
+                            &mut room_chars,
+                            &mut room_objs,
+                        )
                     } else {
                         write!(conn, "I have no idea what that means!")
                     };
@@ -244,7 +276,8 @@ fn game_loop(
 
         // handle output
         for (_idx, conn) in &mut connections {
-            let _ = conn.write_flush("You are who you are; You are where you are; The time is now>");
+            let _ =
+                conn.write_flush("You are who you are; You are where you are; The time is now>");
         }
 
         let now = Instant::now();

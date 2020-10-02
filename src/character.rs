@@ -1,3 +1,4 @@
+use generational_arena::Index;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 use std::path::{Path, PathBuf};
@@ -20,25 +21,30 @@ impl Display for CharId {
 pub struct Character {
     #[serde(default, skip_serializing)]
     id: CharId,
+    #[serde(skip)]
+    index: Option<Index>,
     keywords: Vec<String>,
     formal_name: String,
     #[serde(skip_serializing)]
     room_description: Option<String>,
     description: Option<String>,
     pronoun: Pronoun,
-    // password: String,
     #[serde(default)]
     pub in_room: RoomId,
 }
 
 impl Character {
-    pub fn new_player(keywords: Vec<String>, formal_name: String, pronoun: Pronoun, ) -> Self {
+    pub fn new_player(keywords: Vec<String>, formal_name: String, pronoun: Pronoun) -> Self {
         Character {
             keywords,
             formal_name,
             pronoun,
             ..Default::default()
         }
+    }
+
+    pub fn set_index(&mut self, index: Index) {
+        self.index = Some(index);
     }
 
     pub fn id(&self) -> CharId {

@@ -14,6 +14,17 @@ Do you have an answer for her?
 pronoun = "She"
 in-room = 2 # TODO: I think we'll want a reset mechanism instead of going by this field (which is for player chars)
 
+[[objects]]
+id = 1
+keywords = ["greatsword", "sword", "battered"]
+name = "an old greatsword"
+room-description = "This battered sword has seen better days."
+description = '''
+Most of the blade has lost its edge, and faint traces of rust
+creep out of the hilt.
+'''
+object-type = "Weapon"
+
 [[rooms]]
 id = 1
 name = "The first room"
@@ -49,4 +60,7 @@ the dreadful weather outside.
 '''
 exits = [
     { dir = "south", to = 2 }
+]
+load-objects = [
+    1 # TODO: we're not doing this; this is just for testing
 ]

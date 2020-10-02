@@ -1,3 +1,5 @@
+use crate::object::{ObjectId, ObjectInRoomAdapter};
+use intrusive_collections::LinkedList;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 use std::fmt::{Display, Formatter};
@@ -18,11 +20,14 @@ impl Display for RoomId {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct RoomDef {
     id: RoomId,
     name: String,
     description: String,
     exits: Exits,
+    #[serde(default)]
+    load_objects: Vec<ObjectId>,
     // flags
     // sector type
     // extra descs
@@ -71,6 +76,7 @@ pub struct Room {
     pub name: String,
     pub description: String,
     pub exits: Exits,
+    pub object_ids: Vec<ObjectId>, // FIXME: this is not real, it's for testing
     // flags
     // sector type
     // extra descs
@@ -85,6 +91,7 @@ impl Room {
             name: room_def.name,
             description: room_def.description.trim().to_string(),
             exits: room_def.exits,
+            object_ids: room_def.load_objects,
             area,
             ..Default::default()
         }

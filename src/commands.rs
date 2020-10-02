@@ -1,7 +1,8 @@
 use crate::util::{self, take_argument};
-use crate::{Character, Connection, PlayerRecord, Room, RoomId};
+use crate::{Character, Connection, ObjectInRoomAdapter, PlayerRecord, Room, RoomId};
 use fnv::FnvHashMap as HashMap;
 use generational_arena::{Arena, Index};
+use intrusive_collections::LinkedList;
 use std::io::{Result as IoResult, Write};
 
 pub type CommandFn = fn(
@@ -10,6 +11,7 @@ pub type CommandFn = fn(
     &mut Arena<Character>,
     &HashMap<RoomId, Room>,
     &mut HashMap<RoomId, Vec<Index>>,
+    &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()>;
 pub type CommandEntry = (String, CommandFn);
 
@@ -30,6 +32,7 @@ pub fn save(
     characters: &mut Arena<Character>,
     _rooms: &HashMap<RoomId, Room>,
     _room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    _room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
     let character = characters
         .get(conn.character)
@@ -51,15 +54,20 @@ pub fn look(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
     let char = characters
         .get(conn.character)
         .expect("Unwrapped None character");
     let room = rooms.get(&char.in_room).expect("Unwrapped None room");
     let (arg, _) = take_argument(arguments);
-    let in_room = room_chars
+    let chars_in_room = room_chars
         .get(&char.in_room)
         .expect("Unwrapped None room chars");
+    let objs_in_room = room_objs
+        .get(&char.in_room)
+        .expect("Unwrapped None room objs");
+
     match arg {
         Some("auto") | None => {
             write!(
@@ -67,8 +75,13 @@ pub fn look(
                 "{}\r\n{}\r\n{}\r\n",
                 &room.name, &room.exits, &room.description
             )?;
+
+            for obj in objs_in_room {
+                write!(conn, "    {}\r\n", obj.room_description());
+            }
+
             let self_idx = conn.character;
-            for ch in in_room.iter().filter_map(|&idx| {
+            for ch in chars_in_room.iter().filter_map(|&idx| {
                 if idx != self_idx {
                     characters.get(idx)
                 } else {
@@ -79,7 +92,7 @@ pub fn look(
             }
         }
         Some(a) => {
-            if let Some(target) = in_room
+            if let Some(target) = chars_in_room
                 .iter()
                 .filter_map(|idx| characters.get(*idx))
                 .find(|ch| ch.keywords().iter().any(|kw| kw.starts_with(a)))
@@ -91,6 +104,11 @@ pub fn look(
                     target.formal_name(),
                     target.description()
                 )?;
+            } else if let Some(target) = objs_in_room
+                .iter()
+                .find(|obj| obj.keywords().iter().any(|kw| kw.starts_with(a)))
+            {
+                write!(conn, "{}\r\n", target.description())?;
             } else {
                 write!(conn, "You don't see any {} here.\r\n", a)?;
             }
@@ -105,8 +123,9 @@ fn north(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
-    move_char(conn, "north", characters, rooms, room_chars)
+    move_char(conn, "north", characters, rooms, room_chars, room_objs)
 }
 
 fn south(
@@ -115,8 +134,9 @@ fn south(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
-    move_char(conn, "south", characters, rooms, room_chars)
+    move_char(conn, "south", characters, rooms, room_chars, room_objs)
 }
 
 fn east(
@@ -125,8 +145,9 @@ fn east(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
-    move_char(conn, "east", characters, rooms, room_chars)
+    move_char(conn, "east", characters, rooms, room_chars, room_objs)
 }
 
 fn west(
@@ -135,8 +156,9 @@ fn west(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
-    move_char(conn, "west", characters, rooms, room_chars)
+    move_char(conn, "west", characters, rooms, room_chars, room_objs)
 }
 
 // TODO: rename this to navigate_char, because it's using directions. move_char should be reserved
@@ -147,6 +169,7 @@ fn move_char(
     characters: &mut Arena<Character>,
     rooms: &HashMap<RoomId, Room>,
     room_chars: &mut HashMap<RoomId, Vec<Index>>,
+    room_objs: &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()> {
     let char = characters
         .get_mut(conn.character)
@@ -160,7 +183,7 @@ fn move_char(
         transfer_char(conn.character, to_room.id, characters, room_chars);
         // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
         // first (since we already have it)
-        look(conn, "auto", characters, rooms, room_chars)?;
+        look(conn, "auto", characters, rooms, room_chars, room_objs)?;
     } else {
         write!(conn, "You can't go {}.\r\n", arguments)?;
     }
