@@ -13,16 +13,15 @@ pub type CommandFn = fn(
     &mut HashMap<RoomId, Vec<Index>>,
     &mut HashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
 ) -> IoResult<()>;
-pub type CommandEntry = (String, CommandFn);
 
-pub fn define_commands() -> Vec<CommandEntry> {
+pub fn define_commands() -> Vec<(&'static str, CommandFn)> {
     vec![
-        ("north".to_string(), north),
-        ("south".to_string(), south),
-        ("east".to_string(), east),
-        ("west".to_string(), west),
-        ("look".to_string(), look),
-        ("save".to_string(), save),
+        ("north", north),
+        ("south", south),
+        ("east", east),
+        ("west", west),
+        ("look", look),
+        ("save", save),
     ]
 }
 
@@ -190,15 +189,27 @@ fn move_char(
     Ok(())
 }
 
-pub fn lookup_command<'a>(commands: &'a [CommandEntry], command: &str) -> Option<&'a CommandFn> {
+pub fn lookup_command<'a, T>(commands: &'a [(&'static str, T)], command: &str) -> Option<&'a T> {
     if command.is_empty() {
         return None;
     }
     let command = command.to_ascii_lowercase();
-    commands
-        .iter()
-        .find(|(name, _)| name.starts_with(&command))
-        .map(|(_, cmd)| cmd)
+
+    let mut found: Option<&'a T> = None;
+
+    for (name, cmd_fn) in commands {
+        let is_match = name.starts_with(&command);
+        let exact = name.len() == command.len();
+        if is_match && exact {
+            found = Some(cmd_fn);
+            break;
+        }
+        if is_match && found.is_none() {
+            found = Some(cmd_fn);
+        }
+    }
+
+    found
 }
 
 // TODO: This is not a command; move it to a different module eventually
@@ -230,5 +241,52 @@ pub fn transfer_char(
     } else {
         log::warn!("transfer_char: couldn't move to {}", to_room);
         Err(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::lookup_command;
+
+    #[derive(Debug, Eq, PartialEq)]
+    enum FakeCommand {
+        Nobody,
+        North,
+        Northern,
+        There,
+        Thorn,
+        Throw,
+        ThrowAway,
+    }
+    use FakeCommand::*;
+
+    const commands: &[(&'static str, FakeCommand)] = &[
+        ("north", North),
+        ("northern", Northern),
+        ("throwaway", ThrowAway),
+        ("throw", Throw),
+        ("nobody", Nobody),
+        ("thorn", Thorn),
+        ("there", There),
+    ];
+
+    #[test]
+    fn find_exact_command() {
+        assert_eq!(Some(&North), lookup_command(&commands, "north"));
+    }
+
+    #[test]
+    fn prioritize_earlier_matches() {
+        assert_eq!(Some(&North), lookup_command(&commands, "no"));
+    }
+
+    #[test]
+    fn prioritize_exact_matches() {
+        assert_eq!(Some(&Throw), lookup_command(&commands, "throw"));
+    }
+
+    #[test]
+    fn find_partial_match() {
+        assert_eq!(Some(&There), lookup_command(&commands, "the"));
     }
 }
