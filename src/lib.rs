@@ -8,16 +8,18 @@ mod player;
 mod pronoun;
 mod room;
 pub mod util;
+pub mod world;
 
 pub use area::Area;
 pub use character::{CharId, Character};
-pub use commands::{define_commands, lookup_command};
+pub use commands::{lookup_command, COMMANDS};
 pub use connection::{Connection, ConnectionBuilder};
 pub use listener::listen;
 pub use object::{
-    AllobjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter, ObjectOnCharAdapter,
+    AllObjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter, ObjectOnCharAdapter,
     ObjectType,
 };
 pub use player::{Player, PlayerRecord};
 pub use pronoun::Pronoun;
 pub use room::{Exit, Room, RoomId};
+pub use world::World;

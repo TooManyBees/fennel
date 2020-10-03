@@ -19,7 +19,7 @@ pub struct ObjectDef {
 
 intrusive_adapter!(pub ObjectInRoomAdapter = Rc<Object>: Object { in_room_link: LinkedListLink });
 intrusive_adapter!(pub ObjectOnCharAdapter = Rc<Object>: Object { on_char_link: LinkedListLink });
-intrusive_adapter!(pub AllobjectsAdapter = Rc<Object>: Object { all_objs_link: LinkedListLink });
+intrusive_adapter!(pub AllObjectsAdapter = Rc<Object>: Object { all_objs_link: LinkedListLink });
 
 #[derive(Clone, Debug, Default)]
 pub struct Object {
