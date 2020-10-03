@@ -12,6 +12,7 @@ pub const COMMANDS: &[(&'static str, CommandFn)] = &[
     ("west", west),
     ("look", look),
     ("save", save),
+    ("quit", quit),
 ];
 
 pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
@@ -26,11 +27,46 @@ pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
         .clone();
     let player_record = PlayerRecord::from_player(conn.player().clone(), character);
     match util::save(conn.player_name(), player_record) {
-        Ok(()) => write!(conn, "Saved!\n"),
-        Err(e) => {
-            log::error!("SAVE ERROR for {}: {}", &conn.player_name(), e);
-            write!(conn, "Your character couldn't be saved.")
+        Ok(()) => write!(conn, "Saved!\r\n"),
+        Err(_) => {
+            write!(conn, "Your character couldn't be saved.\r\n")
         }
+    }
+}
+
+pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
+    let mut conn = world
+        .connections
+        .remove(conn_idx)
+        .expect("Unwrapped None connection");
+    let character = world
+        .characters
+        .remove(conn.character)
+        .expect("Unwrapped None character");
+    let player_room = character.in_room;
+
+    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
+    match util::save(conn.player_name(), player_record) {
+        Ok(()) => {
+            let _ = write!(conn, "Saved!\r\nGoodbye.\r\n");
+            let _ = conn.write_flush(None);
+            world.char_from_room(conn.character, player_room);
+
+            if let Some(room) = world.rooms.get(&player_room) {
+                for char_idx in &world.room_chars[&room.id] {
+                    // FIXME: chars need indices back to their connections too!
+                    // message players in room that they quit
+                }
+            }
+
+            log::info!("Player quit {} from {}", conn.player_name(), conn.addr());
+
+            Ok(())
+        }
+        Err(e) => write!(
+            conn,
+            "Your character couldn't be saved.\r\nBailing from quit.\r\n"
+        ),
     }
 }
 
@@ -152,10 +188,12 @@ fn move_char(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()
         .get(&char.in_room)
         .and_then(|room| room.exits.get(arguments))
     {
+        let from_room = char.in_room;
         let to_room = world.rooms.get(&exit.to).expect("Unwrapped None room").id;
         let char_idx = conn.character;
 
-        world.transport_char(char_idx, to_room);
+        world.char_from_room(char_idx, from_room);
+        world.char_to_room(char_idx, to_room);
         // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
         // first (since we already have it)
         look(conn_idx, "auto", world)?;

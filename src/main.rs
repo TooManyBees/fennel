@@ -58,6 +58,7 @@ fn accept_new_connections(
                 char.in_room = RoomId::default();
             }
 
+            // TODO: use world.char_to_room here for consistency
             let in_room = world
                 .room_chars
                 .get_mut(&char.in_room)
@@ -98,8 +99,9 @@ fn game_loop(
 
         // handle output
         for (_idx, conn) in &mut world.connections {
-            let _ =
-                conn.write_flush("You are who you are; You are where you are; The time is now>");
+            let _ = conn.write_flush(Some(
+                "You are who you are; You are where you are; The time is now>",
+            ));
         }
 
         let now = Instant::now();

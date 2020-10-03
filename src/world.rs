@@ -142,14 +142,10 @@ impl World {
         }
     }
 
-    pub fn transport_char(&mut self, char_idx: Index, to_room: RoomId) {
-        let char = self
-            .characters
-            .get_mut(char_idx)
-            .expect("Unwrapped None character");
+    pub fn char_from_room(&mut self, char_idx: Index, from_room: RoomId) {
         let in_room = self
             .room_chars
-            .get_mut(&char.in_room)
+            .get_mut(&from_room)
             .expect("Unwrapped None room chars");
         if let Some(i) = in_room
             .iter()
@@ -159,8 +155,15 @@ impl World {
         {
             in_room.remove(i);
         } else {
-            log::warn!("transfer_char: couldn't remove char from {}", char.in_room);
+            log::warn!("transfer_char: couldn't remove char from {}", from_room);
         }
+    }
+
+    pub fn char_to_room(&mut self, char_idx: Index, to_room: RoomId) {
+        let char = self
+            .characters
+            .get_mut(char_idx)
+            .expect("Unwrapped None character");
         char.in_room = to_room;
         // Add char index to new room
         if let Some(in_room) = self.room_chars.get_mut(&char.in_room) {
