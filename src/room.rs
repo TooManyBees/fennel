@@ -1,5 +1,4 @@
-use crate::object::{ObjectId, ObjectInRoomAdapter};
-use intrusive_collections::LinkedList;
+use crate::object::ObjectId;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 use std::fmt::{Display, Formatter};

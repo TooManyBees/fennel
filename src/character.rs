@@ -1,7 +1,6 @@
 use generational_arena::Index;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
-use std::path::{Path, PathBuf};
 
 use crate::pronoun::Pronoun;
 use crate::room::RoomId;

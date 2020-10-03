@@ -1,7 +1,6 @@
 use crate::character::Character;
 use crate::pronoun::Pronoun;
 use serde::{Deserialize, Serialize};
-use std::default::Default;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]

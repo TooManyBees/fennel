@@ -53,7 +53,7 @@ impl Connection {
 
     pub fn write_flush(&mut self, prompt: &str) -> IoResult<()> {
         if !self.output.is_empty() {
-            write!(self.output, "\r\n{}", prompt);
+            write!(self.output, "\r\n{}", prompt)?;
             self.output.extend_from_slice(&[0xFF, 0xF9]);
             self.stream.write_all(&self.output)?;
             self.output.clear(); // TODO: find a way to shrink capacity down to 500 if poss?
