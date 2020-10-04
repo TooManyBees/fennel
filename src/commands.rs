@@ -117,5 +117,5 @@ pub fn lookup_command(command: &str) -> Option<&'static CommandFn> {
         return None;
     }
     let command = command.to_ascii_lowercase();
-    util::find_partial(COMMANDS, &command)
+    util::find_partial(COMMANDS.iter().map(|(k, v)| (k, v)), &command)
 }

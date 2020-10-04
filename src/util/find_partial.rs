@@ -1,9 +1,9 @@
-pub fn find_partial<'a, K, V, H>(haystack: H, needle: &str) -> Option<&'a V>
+pub fn find_partial<'a, K, V, H>(haystack: H, needle: &str) -> Option<V>
 where
     K: 'a + AsRef<str>,
-    H: 'a + IntoIterator<Item = &'a (K, V)>,
+    H: 'a + IntoIterator<Item = (K, V)>,
 {
-    let mut found: Option<&'a V> = None;
+    let mut found: Option<V> = None;
 
     for (key, val) in haystack.into_iter() {
         let is_match = key.as_ref().starts_with(&needle);
