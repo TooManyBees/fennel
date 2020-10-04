@@ -1,216 +1,116 @@
-use crate::util::{self, take_argument};
-use crate::world::Recipient;
-use crate::{PlayerRecord, RoomId, World};
+mod informational;
+mod misc;
+mod movement;
+
+use crate::util::{take_argument};
+use crate::World;
 use generational_arena::Index;
-use std::io::{Result as IoResult, Write};
+use std::io::Result as IoResult;
 
 pub type CommandFn = fn(Index, &str, &mut World) -> IoResult<()>;
 
 pub const COMMANDS: &[(&'static str, CommandFn)] = &[
-    ("north", north),
-    ("south", south),
-    ("east", east),
-    ("west", west),
-    ("look", look),
-    ("save", save),
-    ("quit", quit),
+    // Movement commands
+    ("north", movement::north),
+    ("south", movement::south),
+    ("east", movement::east),
+    ("west", movement::west),
+    // ("up", up),
+    // ("down", down),
+    // ("go", go),
+
+    // Common commands
+    // ("buy", buy),
+    // ("cast", cast),
+    // ("exits", exits),
+    // ("get", get),
+    // ("inventory", inventory),
+    // ("kill", kill),
+    // ("fight", fight),
+    ("look", informational::look),
+    // ("order", order),
+    // ("rest", rest),
+    // ("sleep", sleep),
+    // ("stand", stand),
+    // ("tell", tell),
+    // ("wield", wield),
+    // ("wizhelp", wizhelp),
+
+    // Informational commands
+    // ("areas", areas),
+    // ("commands", commands),
+    // ("compare", compare),
+    // ("consider", consider),
+    // ("credits", credits),
+    // ("equipment", equipment),
+    // ("examine", examine),
+    // ("help", help),
+    // ("report", report),
+    // ("pagelength", pagelength),
+    // ("score", score),
+    // ("slist", slist),
+    // ("socials", socials),
+    // ("time", time),
+    // ("weather", weather),
+    // ("who", who),
+    // ("wizlist", wizlist),
+
+    // Configuration commands
+    // ("password", password),
+    // ("prmopt", prompt),
+    // ("title", title),
+
+    // Communication commands
+    // ("chat", chat),
+    // (".", chat),
+    // ("emote", emote),
+    // (",", emote),
+    // ("pose", pose),
+    // ("reply", reply),
+    // ("say", say),
+    // ("'", say),
+    // ("shout", shout),
+    // ("yell", yell),
+
+    // Object manipulation commands
+    // ("close", close),
+    // ("drink", drink),
+    // ("drop", drop),
+    // ("eat", eat),
+    // ("fill", fill),
+    // ("give", give),
+    // ("hold", hold),
+    // ("list", list),
+    // ("lock", lock),
+    // ("open", open),
+    // ("pick", pick),
+    // ("put", put),
+    // ("quaff", quaff),
+    // ("recite", recite),
+    // ("remove", remove),
+    // ("sell", sell),
+    // ("take", take),
+    // ("unlock", unlock),
+    // ("value", value),
+    // ("wear", wear),
+    // ("zap", zap),
+
+    // Combat commands
+    // ("flee", flee),
+    // ("rescue", rescue),
+
+    // Misc commands
+    // ("follow", follow),
+    // ("hide", hide),
+    // ("qui", quit_mistake),
+    ("quit", misc::quit),
+    ("save", misc::save),
+    // ("sneak", sneak),
+    // ("steal", steal),
+    // ("visible", visible),
+    // ("wake", wake),
+    // ("where", where),
 ];
-
-pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    let conn = world
-        .connections
-        .get_mut(conn_idx)
-        .expect("Unwrapped None connection");
-    let character = world
-        .characters
-        .get(conn.character)
-        .expect("Unwrapped None character")
-        .clone();
-    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
-    match util::save(conn.player_name(), player_record) {
-        Ok(()) => write!(conn, "Saved!\r\n"),
-        Err(_) => write!(conn, "Your character couldn't be saved.\r\n"),
-    }
-}
-
-pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    let mut conn = world
-        .connections
-        .remove(conn_idx)
-        .expect("Unwrapped None connection");
-    let character = world
-        .characters
-        .remove(conn.character)
-        .expect("Unwrapped None character");
-    let player_room = character.in_room;
-
-    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
-    match util::save(conn.player_name(), player_record) {
-        Ok(()) => {
-            let _ = write!(conn, "Saved!\r\nGoodbye.\r\n");
-            let _ = conn.write_flush(None);
-            world.char_from_room(conn.character, player_room);
-
-            if let Some(room) = world.rooms.get(&player_room) {
-                for char_idx in &world.room_chars[&room.id] {
-                    // FIXME: chars need indices back to their connections too!
-                    // message players in room that they quit
-                }
-            }
-
-            log::info!("Player quit {} from {}", conn.player_name(), conn.addr());
-
-            Ok(())
-        }
-        Err(e) => write!(
-            conn,
-            "Your character couldn't be saved.\r\nBailing from quit.\r\n"
-        ),
-    }
-}
-
-pub fn look(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
-    let conn = world
-        .connections
-        .get_mut(conn_idx)
-        .expect("Unwrapped None connection");
-    let (arg, _) = take_argument(arguments);
-
-    let room;
-    let chars_in_room;
-    let objs_in_room;
-    {
-        let char = world
-            .characters
-            .get(conn.character)
-            .expect("Unwrapped None character");
-        room = world.rooms.get(&char.in_room).expect("Unwrapped None room");
-        chars_in_room = world
-            .room_chars
-            .get(&char.in_room)
-            .expect("Unwrapped None room chars");
-        objs_in_room = world
-            .room_objs
-            .get(&char.in_room)
-            .expect("Unwrapped None room objs");
-    };
-
-    match arg {
-        Some("auto") | None => {
-            write!(
-                conn,
-                "{}\r\n{}\r\n{}\r\n",
-                &room.name, &room.exits, &room.description
-            )?;
-
-            for obj in objs_in_room {
-                write!(conn, "    {}\r\n", obj.room_description())?;
-            }
-
-            let self_idx = conn.character;
-            for char_idx in chars_in_room {
-                if *char_idx == self_idx {
-                    continue;
-                }
-                if let Some(ch) = world.characters.get(*char_idx) {
-                    write!(conn, "{}\r\n", ch.room_description())?;
-                }
-            }
-            // for ch in chars_in_room.iter().copied().filter_map(|idx| {
-            //     if idx != self_idx {
-            //         world.characters.get(idx)
-            //     } else {
-            //         None
-            //     }
-            // }) {
-            //     write!(conn, "{}\r\n", ch.room_description())?;
-            // }
-        }
-        Some(a) => {
-            for char_idx in chars_in_room {
-                if let Some(target) = world
-                    .characters
-                    .get(*char_idx)
-                    .filter(|ch| ch.keywords().iter().any(|kw| kw.starts_with(a)))
-                {
-                    write!(
-                        conn,
-                        "You look at {}.\r\n{}\r\n",
-                        target.formal_name(),
-                        target.description()
-                    )?;
-                    return Ok(());
-                }
-            }
-            if let Some(target) = objs_in_room
-                .iter()
-                .find(|obj| obj.keywords().iter().any(|kw| kw.starts_with(a)))
-            {
-                write!(conn, "{}\r\n", target.description())?;
-            } else {
-                write!(conn, "You don't see any {} here.\r\n", a)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn north(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "north", world)
-}
-
-fn south(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "south", world)
-}
-
-fn east(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "east", world)
-}
-
-fn west(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "west", world)
-}
-
-// TODO: rename this to navigate_char, because it's using directions. move_char should be reserved
-// for moving a character directly to any arbitrary room.
-fn move_char(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
-    let conn = world
-        .connections
-        .get(conn_idx)
-        .expect("Unwrapped None connection");
-    let (from_room, char_name) = {
-        let char = world
-            .characters
-            .get(conn.character)
-            .expect("Unwrapped None character");
-
-        (char.in_room, char.formal_name().to_string())
-    };
-    if let Some(exit) = world
-        .rooms
-        .get(&from_room)
-        .and_then(|room| room.exits.get(arguments))
-    {
-        let to_room = world.rooms.get(&exit.to).expect("Unwrapped None room").id;
-        let char_idx = conn.character;
-
-        let leave_msg = format!("{} leaves {}.\r\n", char_name, exit.dir.leaving());
-        let arrive_msg = format!("{} arrives from {}.\r\n", char_name, exit.dir.arriving());
-
-        world.char_from_room(char_idx, from_room);
-        world.msg_char(&leave_msg, Recipient::NotSubject(char_idx, from_room));
-        world.msg_char(&arrive_msg, Recipient::NotSubject(char_idx, to_room));
-        world.char_to_room(char_idx, to_room);
-
-        // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
-        // first (since we already have it)
-        look(conn_idx, "auto", world)?;
-    } else {
-        let conn = world.connections.get_mut(conn_idx).unwrap();
-        write!(conn, "You can't go that way.\r\n")?;
-    }
-    Ok(())
-}
 
 pub fn lookup_command<'a, T>(commands: &'a [(&'static str, T)], command: &str) -> Option<&'a T> {
     if command.is_empty() {

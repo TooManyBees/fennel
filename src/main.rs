@@ -6,8 +6,7 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fennel::commands::look;
-use fennel::{listen, ConnectionBuilder, PlayerRecord, RoomId, World};
+use fennel::{listen, ConnectionBuilder, PlayerRecord, RoomId, World, util};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -80,7 +79,7 @@ fn accept_new_connections(
             .expect("Unwrapped None character");
         let conn_idx = world.connections.insert(conn);
         actual_char.set_connection(conn_idx);
-        let _ = look(conn_idx, "auto", world);
+        let _ = util::look_room(conn_idx, actual_char.in_room, world);
     }
 }
 
