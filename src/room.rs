@@ -47,7 +47,7 @@ impl Exits {
     }
 
     pub fn get(&self, direction: &str) -> Option<&Exit> {
-        self.0.iter().find(|exit| exit.dir.as_str() == direction)
+        self.0.iter().find(|exit| exit.dir.starts_with(direction))
     }
 }
 
