@@ -1,6 +1,6 @@
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
-use crate::world::World;
+use crate::world::{World, Recipient};
 use crate::player::PlayerRecord;
 use crate::util;
 
@@ -31,6 +31,8 @@ pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
         .remove(conn.character)
         .expect("Unwrapped None character");
     let player_room = character.in_room;
+    let formal_name = character.formal_name().to_string();
+    let pronoun = character.pronoun();
 
     let player_record = PlayerRecord::from_player(conn.player().clone(), character);
     match util::save(conn.player_name(), player_record) {
@@ -39,12 +41,7 @@ pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
             let _ = conn.write_flush(None);
             world.char_from_room(conn.character, player_room);
 
-            if let Some(room) = world.rooms.get(&player_room) {
-                for char_idx in &world.room_chars[&room.id] {
-                    // FIXME: chars need indices back to their connections too!
-                    // message players in room that they quit
-                }
-            }
+            world.msg_char(&format!("{} flickers and fades as Reality takes {}.\r\n", formal_name, pronoun.object()), Recipient::All(player_room));
 
             log::info!("Player quit {} from {}", conn.player_name(), conn.addr());
 
