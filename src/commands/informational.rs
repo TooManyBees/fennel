@@ -1,7 +1,7 @@
+use crate::util;
+use crate::world::World;
 use generational_arena::Index;
 use std::io::Result as IoResult;
-use crate::world::World;
-use crate::util;
 
 pub fn look(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
     let conn = world

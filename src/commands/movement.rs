@@ -1,8 +1,8 @@
+use super::informational::look;
+use crate::util;
+use crate::world::{Recipient, World};
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
-use crate::util;
-use crate::world::{World, Recipient};
-use super::informational::look;
 
 pub fn north(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
     move_char(conn_idx, "north", world)

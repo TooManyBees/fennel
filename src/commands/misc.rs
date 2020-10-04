@@ -1,8 +1,8 @@
-use generational_arena::Index;
-use std::io::{Result as IoResult, Write};
-use crate::world::{World, Recipient};
 use crate::player::PlayerRecord;
 use crate::util;
+use crate::world::{Recipient, World};
+use generational_arena::Index;
+use std::io::{Result as IoResult, Write};
 
 pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
     let conn = world
@@ -41,7 +41,14 @@ pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
             let _ = conn.write_flush(None);
             world.char_from_room(conn.character, player_room);
 
-            world.msg_char(&format!("{} flickers and fades as Reality takes {}.\r\n", formal_name, pronoun.object()), Recipient::All(player_room));
+            world.msg_char(
+                &format!(
+                    "{} flickers and fades as Reality takes {}.\r\n",
+                    formal_name,
+                    pronoun.object()
+                ),
+                Recipient::All(player_room),
+            );
 
             log::info!("Player quit {} from {}", conn.player_name(), conn.addr());
 

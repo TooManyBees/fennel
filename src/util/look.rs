@@ -1,7 +1,7 @@
-use generational_arena::Index;
-use std::io::{Write, Result as IoResult};
 use crate::room::RoomId;
 use crate::world::World;
+use generational_arena::Index;
+use std::io::{Result as IoResult, Write};
 
 pub fn look_room(conn_idx: Index, room_id: RoomId, world: &mut World) -> IoResult<()> {
     let conn = world.connections.get_mut(conn_idx).unwrap();

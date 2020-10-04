@@ -6,7 +6,7 @@ use std::net::TcpListener;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fennel::{listen, ConnectionBuilder, PlayerRecord, RoomId, World, util};
+use fennel::{listen, util, ConnectionBuilder, PlayerRecord, RoomId, World};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
