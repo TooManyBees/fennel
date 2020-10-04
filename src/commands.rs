@@ -15,9 +15,9 @@ pub const COMMANDS: &[(&'static str, CommandFn)] = &[
     ("south", movement::south),
     ("east", movement::east),
     ("west", movement::west),
-    // ("up", up),
-    // ("down", down),
-    // ("go", go),
+    ("up", movement::up),
+    ("down", movement::down),
+    ("go", movement::go),
 
     // Common commands
     // ("buy", buy),
