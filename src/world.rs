@@ -1,6 +1,6 @@
 use crate::area::Area;
 use crate::character::{CharId, Character};
-use crate::commands::{lookup_command, CommandFn, COMMANDS};
+use crate::commands::{lookup_command, CommandFn};
 use crate::connection::Connection;
 use crate::object::{AllObjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter};
 use crate::room::{Room, RoomId};
@@ -92,7 +92,7 @@ impl World {
                         let pending = PendingCommand {
                             conn_idx: idx,
                             at_room: self.characters[conn.character].in_room,
-                            command: lookup_command(COMMANDS, command),
+                            command: lookup_command(command),
                             arguments: rest.to_string(),
                         };
                         self.pending_commands.push_back(pending);

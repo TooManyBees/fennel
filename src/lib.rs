@@ -12,7 +12,7 @@ pub mod world;
 
 pub use area::Area;
 pub use character::{CharId, Character};
-pub use commands::{lookup_command, COMMANDS};
+pub use commands::lookup_command;
 pub use connection::{Connection, ConnectionBuilder};
 pub use listener::listen;
 pub use object::{

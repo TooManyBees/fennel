@@ -1,7 +1,6 @@
 use generational_arena::Index;
 use std::io::Result as IoResult;
 use crate::world::World;
-use super::take_argument;
 use crate::util;
 
 pub fn look(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
@@ -9,7 +8,7 @@ pub fn look(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
         .connections
         .get_mut(conn_idx)
         .expect("Unwrapped None connection");
-    let (arg, _) = take_argument(arguments);
+    let (arg, _) = util::take_argument(arguments);
     let room_id = {
         let char = world
             .characters
