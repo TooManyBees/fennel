@@ -22,6 +22,8 @@ pub struct Character {
     id: CharId,
     #[serde(skip)]
     index: Option<Index>,
+    #[serde(skip)]
+    connection: Option<Index>,
     keywords: Vec<String>,
     formal_name: String,
     #[serde(skip_serializing)]
@@ -44,6 +46,18 @@ impl Character {
 
     pub fn set_index(&mut self, index: Index) {
         self.index = Some(index);
+    }
+
+    pub fn index(&self) -> Option<Index> {
+        self.index
+    }
+
+    pub fn set_connection(&mut self, index: Index) {
+        self.connection = Some(index);
+    }
+
+    pub fn connection(&self) -> Option<Index> {
+        self.connection
     }
 
     pub fn id(&self) -> CharId {

@@ -1,4 +1,5 @@
 use crate::util::{self, take_argument};
+use crate::world::Recipient;
 use crate::{PlayerRecord, RoomId, World};
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
@@ -28,9 +29,7 @@ pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
     let player_record = PlayerRecord::from_player(conn.player().clone(), character);
     match util::save(conn.player_name(), player_record) {
         Ok(()) => write!(conn, "Saved!\r\n"),
-        Err(_) => {
-            write!(conn, "Your character couldn't be saved.\r\n")
-        }
+        Err(_) => write!(conn, "Your character couldn't be saved.\r\n"),
     }
 }
 
@@ -179,27 +178,36 @@ fn move_char(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()
         .connections
         .get(conn_idx)
         .expect("Unwrapped None connection");
-    let char = world
-        .characters
-        .get(conn.character)
-        .expect("Unwrapped None character");
+    let (from_room, char_name) = {
+        let char = world
+            .characters
+            .get(conn.character)
+            .expect("Unwrapped None character");
+
+        (char.in_room, char.formal_name().to_string())
+    };
     if let Some(exit) = world
         .rooms
-        .get(&char.in_room)
+        .get(&from_room)
         .and_then(|room| room.exits.get(arguments))
     {
-        let from_room = char.in_room;
         let to_room = world.rooms.get(&exit.to).expect("Unwrapped None room").id;
         let char_idx = conn.character;
 
+        let leave_msg = format!("{} leaves {}.\r\n", char_name, exit.dir.leaving());
+        let arrive_msg = format!("{} arrives from {}.\r\n", char_name, exit.dir.arriving());
+
         world.char_from_room(char_idx, from_room);
+        world.msg_char(&leave_msg, Recipient::NotSubject(char_idx, from_room));
+        world.msg_char(&arrive_msg, Recipient::NotSubject(char_idx, to_room));
         world.char_to_room(char_idx, to_room);
+
         // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
         // first (since we already have it)
         look(conn_idx, "auto", world)?;
     } else {
         let conn = world.connections.get_mut(conn_idx).unwrap();
-        write!(conn, "You can't go {}.\r\n", arguments)?;
+        write!(conn, "You can't go that way.\r\n")?;
     }
     Ok(())
 }

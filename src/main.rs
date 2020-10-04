@@ -72,7 +72,14 @@ fn accept_new_connections(
             conn_builder.logged_in(player, char_idx)
         };
 
+        // The actual char might be the one returned from the login thread, or one that was
+        // taken over from a reconnection.
+        let actual_char = world
+            .characters
+            .get_mut(conn.character)
+            .expect("Unwrapped None character");
         let conn_idx = world.connections.insert(conn);
+        actual_char.set_connection(conn_idx);
         let _ = look(conn_idx, "auto", world);
     }
 }

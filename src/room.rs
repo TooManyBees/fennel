@@ -1,7 +1,13 @@
+mod direction;
+mod exit;
+
 use crate::object::ObjectId;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 use std::fmt::{Display, Formatter};
+
+pub use direction::Direction;
+pub use exit::{Exit, Exits};
 
 #[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
 pub struct RoomId(u32);
@@ -30,42 +36,6 @@ pub struct RoomDef {
     // flags
     // sector type
     // extra descs
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Exit {
-    pub to: RoomId,
-    pub dir: String,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-pub struct Exits(pub Vec<Exit>);
-
-impl Exits {
-    pub fn remove(&mut self, index: usize) {
-        self.0.remove(index);
-    }
-
-    pub fn get(&self, direction: &str) -> Option<&Exit> {
-        self.0.iter().find(|exit| exit.dir.starts_with(direction))
-    }
-}
-
-impl AsRef<Vec<Exit>> for Exits {
-    fn as_ref(&self) -> &Vec<Exit> {
-        &self.0
-    }
-}
-
-impl Display for Exits {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "[Exits:")?;
-        for exit in &self.0 {
-            write!(f, " {}", exit.dir)?;
-        }
-        write!(f, "]")?;
-        Ok(())
-    }
 }
 
 #[derive(Debug, Default)]

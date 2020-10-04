@@ -172,6 +172,96 @@ impl World {
             log::warn!("transfer_char: couldn't move to {}", to_room);
         }
     }
+
+    pub fn msg_char(&mut self, message: &str, recipient: Recipient) {
+        match recipient {
+            Recipient::Subject(char_idx) => {
+                if let Some(conn) = self
+                    .characters
+                    .get(char_idx)
+                    .and_then(|char| char.connection())
+                    .and_then(|conn_idx| self.connections.get_mut(conn_idx))
+                {
+                    let _ = Write::write(conn, message.as_bytes());
+                } else {
+                    log::warn!(
+                        "Tried to send message to character without a connection: {:?}",
+                        char_idx
+                    );
+                }
+            }
+            Recipient::NotSubject(subj_index, room_id) => {
+                // FIXME: I don't like this .clone() here, not one bit
+                for char_idx in self.room_chars[&room_id]
+                    .clone()
+                    .iter()
+                    .filter(|idx| **idx != subj_index)
+                {
+                    if let Some(conn) = self
+                        .characters
+                        .get(*char_idx)
+                        .and_then(|char| char.connection())
+                        .and_then(|conn_idx| self.connections.get_mut(conn_idx))
+                    {
+                        let _ = Write::write_all(conn, message.as_bytes());
+                    } else {
+                        log::warn!(
+                            "Tried to send message to character without a connection: {:?}",
+                            char_idx
+                        );
+                    }
+                }
+            }
+            Recipient::Neither(char_idx1, char_idx2, room_id) => {
+                // FIXME: I don't like this .clone() here, not one bit
+                for char_idx in self.room_chars[&room_id]
+                    .clone()
+                    .iter()
+                    .filter(|&&idx| idx != char_idx1 || idx != char_idx2)
+                {
+                    if let Some(conn) = self
+                        .characters
+                        .get(*char_idx)
+                        .and_then(|char| char.connection())
+                        .and_then(|conn_idx| self.connections.get_mut(conn_idx))
+                    {
+                        let _ = Write::write(conn, message.as_bytes());
+                    } else {
+                        log::warn!(
+                            "Tried to send message to character without a connection: {:?}",
+                            char_idx
+                        );
+                    }
+                }
+            }
+            Recipient::All(room_id) => {
+                // FIXME: I don't like this .clone() here, not one bit
+                for char_idx in self.room_chars[&room_id].clone() {
+                    if let Some(conn) = self
+                        .characters
+                        .get(char_idx)
+                        .and_then(|char| char.connection())
+                        .and_then(|conn_idx| self.connections.get_mut(conn_idx))
+                    {
+                        let _ = Write::write(conn, message.as_bytes());
+                    } else {
+                        log::warn!(
+                            "Tried to send message to character without a connection: {:?}",
+                            char_idx
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Recipient {
+    Subject(Index),
+    NotSubject(Index, RoomId),
+    Neither(Index, Index, RoomId),
+    All(RoomId),
 }
 
 fn load_areas() -> (
@@ -245,7 +335,7 @@ fn audit_room_exits(rooms: &mut FnvHashMap<RoomId, Room>) {
                     log::warn!(
                         "Loading areas: removed room {}'s exit '{}' to nonexistant {}",
                         room.id,
-                        &exit.dir,
+                        &exit.dir.leaving(),
                         &exit.to
                     );
                     room.exits.remove(n);

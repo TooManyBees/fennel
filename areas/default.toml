@@ -34,7 +34,7 @@ you can see the glow of moonlight seeping through
 the folds.
 '''
 exits = [
-    { dir = "north", to = 2 }
+    { dir = "North", to = 2 }
 ]
 
 [[rooms]]
@@ -46,8 +46,8 @@ You can't tell where the light is coming from.
 Maddening.
 '''
 exits = [
-    { dir = "south", to = 1 },
-    { dir = "north", to = 3 },
+    { dir = "South", to = 1 },
+    { dir = "North", to = 3 },
 ]
 
 [[rooms]]
@@ -59,7 +59,7 @@ A wall of bookcases promises to distract you from
 the dreadful weather outside.
 '''
 exits = [
-    { dir = "south", to = 2 }
+    { dir = "South", to = 2 }
 ]
 load-objects = [
     1 # TODO: we're not doing this; this is just for testing
