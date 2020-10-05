@@ -1,9 +1,16 @@
+mod character_data;
+mod player;
+mod player_record;
+mod pronoun;
+
 use generational_arena::Index;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 
-use crate::pronoun::Pronoun;
 use crate::room::RoomId;
+pub use player::Player;
+pub use player_record::PlayerRecord;
+pub use pronoun::Pronoun;
 use std::fmt::{Display, Formatter};
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, Hash, Eq, PartialEq, Serialize)]

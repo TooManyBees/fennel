@@ -1,19 +1,6 @@
-use crate::character::Character;
-use crate::pronoun::Pronoun;
+use crate::character::{Character, Player, Pronoun};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-
-#[derive(Debug, Clone)]
-pub struct Player {
-    name: String,
-    password: String,
-}
-
-impl Player {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlayerRecord {

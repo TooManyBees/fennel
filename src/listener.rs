@@ -3,8 +3,7 @@ use crossbeam_channel::Sender;
 use smol::{fs, io, prelude::*, Async};
 use std::net::{TcpListener, TcpStream};
 
-use crate::player::PlayerRecord;
-use crate::pronoun::Pronoun;
+use crate::character::{PlayerRecord, Pronoun};
 use crate::ConnectionBuilder;
 
 #[derive(Debug)]

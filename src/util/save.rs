@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{Error, ErrorKind, Result};
 
-use crate::PlayerRecord;
+use crate::character::PlayerRecord;
 
 pub fn save(name: &str, player_record: PlayerRecord) -> Result<()> {
     let mut f = File::create(PlayerRecord::file_path(name))?;

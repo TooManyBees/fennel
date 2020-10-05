@@ -1,4 +1,4 @@
-use crate::player::PlayerRecord;
+use crate::character::PlayerRecord;
 use crate::util;
 use crate::world::{Recipient, World};
 use generational_arena::Index;
