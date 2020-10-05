@@ -1,3 +1,4 @@
+use crate::util::HasKeywords;
 use intrusive_collections::{intrusive_adapter, LinkedListLink};
 use serde::{Deserialize, Serialize};
 use std::default::Default;
@@ -21,7 +22,7 @@ intrusive_adapter!(pub ObjectInRoomAdapter = Rc<Object>: Object { in_room_link: 
 intrusive_adapter!(pub ObjectOnCharAdapter = Rc<Object>: Object { on_char_link: LinkedListLink });
 intrusive_adapter!(pub AllObjectsAdapter = Rc<Object>: Object { all_objs_link: LinkedListLink });
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Object {
     id: ObjectId,
     keywords: Vec<String>,
@@ -29,8 +30,11 @@ pub struct Object {
     room_description: String,
     description: Option<String>,
     object_type: ObjectType,
+    #[serde(skip)]
     in_room_link: LinkedListLink,
+    #[serde(skip)]
     on_char_link: LinkedListLink,
+    #[serde(skip)]
     all_objs_link: LinkedListLink,
 }
 
@@ -47,10 +51,6 @@ impl Object {
         }
     }
 
-    pub fn keywords(&self) -> &[String] {
-        &self.keywords
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -61,6 +61,12 @@ impl Object {
 
     pub fn description(&self) -> &str {
         self.description.as_ref().unwrap_or(&self.room_description)
+    }
+}
+
+impl HasKeywords for Object {
+    fn keywords(&self) -> &[String] {
+        &self.keywords
     }
 }
 

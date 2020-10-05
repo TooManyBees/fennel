@@ -1,4 +1,3 @@
-use crate::character::{Character, Pronoun};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

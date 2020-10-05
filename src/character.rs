@@ -4,10 +4,13 @@ mod player_record;
 mod pronoun;
 
 use generational_arena::Index;
+use intrusive_collections::LinkedList;
 use serde::{Deserialize, Serialize};
 use std::default::Default;
 
+use crate::object::ObjectOnCharAdapter;
 use crate::room::RoomId;
+pub use character_data::CharacterData;
 pub use player::Player;
 pub use player_record::PlayerRecord;
 pub use pronoun::Pronoun;
@@ -22,35 +25,35 @@ impl Display for CharId {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Default)]
 pub struct Character {
-    #[serde(default, skip_serializing)]
-    id: CharId,
-    #[serde(skip)]
+    // id: CharId,
     index: Option<Index>,
-    #[serde(skip)]
     connection: Option<Index>,
-    keywords: Vec<String>,
-    formal_name: String,
-    #[serde(skip_serializing)]
-    room_description: Option<String>,
-    description: Option<String>,
-    pronoun: Pronoun,
-    #[serde(default)]
-    pub in_room: RoomId,
+    // keywords: Vec<String>,
+    // formal_name: String,
+    // room_description: Option<String>,
+    // description: Option<String>,
+    // pronoun: Pronoun,
+    // pub in_room: RoomId,
+    data: CharacterData,
+    pub inventory: LinkedList<ObjectOnCharAdapter>,
 }
 
 impl Character {
-    pub fn new_player(keywords: Vec<String>, formal_name: String, pronoun: Pronoun) -> Self {
+    pub fn from_data(char_data: CharacterData) -> Self {
         Character {
-            keywords,
-            formal_name,
-            pronoun,
+            // id: char_data.id,
+            // keywords: char_data.keywords,
+            // formal_name: char_data.formal_name,
+            // room_description: char_data.room_description,
+            // description: char_data.description,
+            // pronoun: char_data.pronoun,
+            // in_room: char_data.in_room,
+            data: char_data,
             ..Default::default()
         }
     }
-
     pub fn set_index(&mut self, index: Index) {
         self.index = Some(index);
     }
@@ -68,37 +71,46 @@ impl Character {
     }
 
     pub fn id(&self) -> CharId {
-        self.id
+        self.data.id
     }
 
     pub fn keywords(&self) -> &[String] {
-        &self.keywords
+        &self.data.keywords
     }
 
     pub fn formal_name(&self) -> &str {
-        &self.formal_name
+        &self.data.formal_name
     }
 
     pub fn description(&self) -> Description {
         Description {
-            description: self.description.as_deref(),
-            pronoun: self.pronoun,
+            description: self.data.description.as_deref(),
+            pronoun: self.data.pronoun,
         }
     }
 
     pub fn room_description(&self) -> RoomDescription {
         RoomDescription {
-            room_description: self.room_description.as_deref(),
+            room_description: self.data.room_description.as_deref(),
             name: &self
+                .data
                 .keywords
                 .get(0)
                 .expect("Missing first keyword for name"),
-            formal_name: &self.formal_name,
+            formal_name: &self.data.formal_name,
         }
     }
 
     pub fn pronoun(&self) -> Pronoun {
-        self.pronoun
+        self.data.pronoun
+    }
+
+    pub fn in_room(&self) -> RoomId {
+        self.data.in_room
+    }
+
+    pub fn set_in_room(&mut self, room_id: RoomId) {
+        self.data.in_room = room_id;
     }
 }
 

@@ -50,7 +50,7 @@ fn move_char(conn_idx: Index, direction: &str, world: &mut World) -> IoResult<()
             .get(conn.character)
             .expect("Unwrapped None character");
 
-        (char.in_room, char.formal_name().to_string())
+        (char.in_room(), char.formal_name().to_string())
     };
     if let Some(exit) = world
         .rooms

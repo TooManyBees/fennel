@@ -1,6 +1,7 @@
 mod informational;
 mod misc;
 mod movement;
+mod objects;
 
 use crate::util;
 use crate::World;
@@ -17,14 +18,13 @@ const COMMANDS: &[(&'static str, CommandFn)] = &[
     ("west", movement::west),
     ("up", movement::up),
     ("down", movement::down),
-    ("go", movement::go),
 
     // Common commands
     // ("buy", buy),
     // ("cast", cast),
     // ("exits", exits),
-    // ("get", get),
-    // ("inventory", inventory),
+    ("get", objects::get),
+    ("inventory", informational::inventory),
     // ("kill", kill),
     // ("fight", fight),
     ("look", informational::look),
@@ -35,6 +35,7 @@ const COMMANDS: &[(&'static str, CommandFn)] = &[
     // ("tell", tell),
     // ("wield", wield),
     // ("wizhelp", wizhelp),
+    ("go", movement::go),
 
     // Informational commands
     // ("areas", areas),
@@ -75,7 +76,7 @@ const COMMANDS: &[(&'static str, CommandFn)] = &[
     // Object manipulation commands
     // ("close", close),
     // ("drink", drink),
-    // ("drop", drop),
+    ("drop", objects::drop),
     // ("eat", eat),
     // ("fill", fill),
     // ("give", give),
@@ -89,7 +90,7 @@ const COMMANDS: &[(&'static str, CommandFn)] = &[
     // ("recite", recite),
     // ("remove", remove),
     // ("sell", sell),
-    // ("take", take),
+    ("take", objects::take),
     // ("unlock", unlock),
     // ("value", value),
     // ("wear", wear),

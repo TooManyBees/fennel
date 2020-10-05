@@ -1,4 +1,5 @@
 use crate::room::RoomId;
+use crate::util::HasKeywords;
 use crate::world::World;
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};

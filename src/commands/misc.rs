@@ -14,7 +14,7 @@ pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
         .get(conn.character)
         .expect("Unwrapped None character")
         .clone();
-    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
+    let player_record = PlayerRecord::from_player(conn.player(), character);
     match util::save(conn.player_name(), player_record) {
         Ok(()) => write!(conn, "Saved!\r\n"),
         Err(_) => write!(conn, "Your character couldn't be saved.\r\n"),
@@ -30,11 +30,11 @@ pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
         .characters
         .remove(conn.character)
         .expect("Unwrapped None character");
-    let player_room = character.in_room;
+    let player_room = character.in_room();
     let formal_name = character.formal_name().to_string();
     let pronoun = character.pronoun();
 
-    let player_record = PlayerRecord::from_player(conn.player().clone(), character);
+    let player_record = PlayerRecord::from_player(conn.player(), &character);
     match util::save(conn.player_name(), player_record) {
         Ok(()) => {
             let _ = write!(conn, "Saved!\r\nGoodbye.\r\n");

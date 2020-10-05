@@ -1,4 +1,4 @@
-use crate::character::{CharId, Character};
+use crate::character::{CharId, CharacterData};
 use crate::object::ObjectDef;
 use crate::room::{RoomDef, RoomId};
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::path::Path;
 pub struct AreaDef {
     name: String,
     author: String,
-    pub npcs: Vec<Character>,
+    pub npcs: Vec<CharacterData>,
     pub objects: Vec<ObjectDef>,
     pub rooms: Vec<RoomDef>,
 }
@@ -25,7 +25,7 @@ impl AreaDef {
         std::mem::take(&mut self.objects)
     }
 
-    pub fn extract_npcs(&mut self) -> Vec<Character> {
+    pub fn extract_npcs(&mut self) -> Vec<CharacterData> {
         std::mem::take(&mut self.npcs)
     }
 }
