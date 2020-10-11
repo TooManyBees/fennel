@@ -10,6 +10,25 @@ where
     A::LinkOps: LinkedListOps,
     <<A as Adapter>::PointerOps as PointerOps>::Value: HasKeywords,
 {
+    if let Some(obj) = find_item_by_keyword(list, keyword) {
+        let ptr = obj as *const <<A as Adapter>::PointerOps as PointerOps>::Value;
+        let mut cursor = unsafe { list.cursor_mut_from_ptr(ptr) };
+        let gotten = cursor.remove().unwrap();
+        return Some(gotten);
+    }
+
+    None
+}
+
+pub fn find_item_by_keyword<'list, A>(
+    list: &'list LinkedList<A>,
+    keyword: &str,
+) -> Option<&'list <<A as Adapter>::PointerOps as PointerOps>::Value>
+where
+    A: Adapter,
+    A::LinkOps: LinkedListOps,
+    <<A as Adapter>::PointerOps as PointerOps>::Value: HasKeywords,
+{
     let mut found = None;
 
     'obj_list: for obj in list.iter() {
@@ -27,12 +46,5 @@ where
         }
     }
 
-    if let Some(obj) = found {
-        let ptr = obj as *const <<A as Adapter>::PointerOps as PointerOps>::Value;
-        let mut cursor = unsafe { list.cursor_mut_from_ptr(ptr) };
-        let gotten = cursor.remove().unwrap();
-        return Some(gotten);
-    }
-
-    None
+    found
 }
