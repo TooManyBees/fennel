@@ -27,15 +27,8 @@ impl Display for CharId {
 
 #[derive(Debug, Default)]
 pub struct Character {
-    // id: CharId,
     index: Option<Index>,
     connection: Option<Index>,
-    // keywords: Vec<String>,
-    // formal_name: String,
-    // room_description: Option<String>,
-    // description: Option<String>,
-    // pronoun: Pronoun,
-    // pub in_room: RoomId,
     data: CharacterData,
     pub inventory: LinkedList<ObjectOnCharAdapter>,
 }
@@ -43,13 +36,6 @@ pub struct Character {
 impl Character {
     pub fn from_data(char_data: CharacterData) -> Self {
         Character {
-            // id: char_data.id,
-            // keywords: char_data.keywords,
-            // formal_name: char_data.formal_name,
-            // room_description: char_data.room_description,
-            // description: char_data.description,
-            // pronoun: char_data.pronoun,
-            // in_room: char_data.in_room,
             data: char_data,
             ..Default::default()
         }
