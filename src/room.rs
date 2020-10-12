@@ -1,4 +1,5 @@
 mod direction;
+mod door;
 mod exit;
 
 use crate::object::ObjectId;
@@ -7,6 +8,7 @@ use std::default::Default;
 use std::fmt::{Display, Formatter};
 
 pub use direction::Direction;
+pub use door::{Door, DoorError};
 pub use exit::{Exit, Exits};
 
 #[derive(Copy, Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
