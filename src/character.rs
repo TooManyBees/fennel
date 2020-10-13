@@ -133,7 +133,7 @@ impl<'ch> Display for RoomDescription<'ch> {
         if let Some(desc) = self.room_description {
             desc.fmt(f)
         } else {
-            write!(f, "{} {{ {} }} is here.\r\n", self.formal_name, self.name)
+            write!(f, "{} {{ {} }} is here.", self.formal_name, self.name)
         }
     }
 }

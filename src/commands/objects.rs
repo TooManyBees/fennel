@@ -25,11 +25,11 @@ pub fn get(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> 
             let char = world.characters.get(char_idx).unwrap();
             let char_name = char.formal_name().to_string();
             world.msg_char(
-                &format!("You get {}.\r\n", obj.name()),
+                &format!("You get {}.", obj.name()),
                 Recipient::Subject(char_idx),
             );
             world.msg_char(
-                &format!("{} gets {}.\r\n", char_name, obj.name()),
+                &format!("{} gets {}.", char_name, obj.name()),
                 Recipient::NotSubject(char_idx, room_id),
             );
             let char = world.characters.get_mut(char_idx).unwrap();
@@ -67,11 +67,11 @@ pub fn drop(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
             let char_name = char.formal_name().to_string();
             let room_id = char.in_room();
             world.msg_char(
-                &format!("You drop {}.\r\n", obj.name()),
+                &format!("You drop {}.", obj.name()),
                 Recipient::Subject(char_idx),
             );
             world.msg_char(
-                &format!("{} drops {}.\r\n", char_name, obj.name()),
+                &format!("{} drops {}.", char_name, obj.name()),
                 Recipient::NotSubject(char_idx, room_id),
             );
             let room_objs = world.room_objs.get_mut(&room_id).unwrap();
@@ -95,14 +95,14 @@ pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
     let object_keyword = match object_keyword {
         Some(kw) => kw,
         None => {
-            world.msg_char("Give what to whom?\r\n", Recipient::Subject(char_idx));
+            world.msg_char("Give what to whom?", Recipient::Subject(char_idx));
             return Ok(());
         }
     };
     let target_keyword = match target_keyword {
         Some(kw) => kw,
         None => {
-            world.msg_char("Give it to whom?\r\n", Recipient::Subject(char_idx));
+            world.msg_char("Give it to whom?", Recipient::Subject(char_idx));
             return Ok(());
         }
     };
@@ -115,7 +115,7 @@ pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
     let target_idx = match target_idx {
         Some(idx) => idx,
         None => {
-            world.msg_char("They aren't here.\r\n", Recipient::Subject(char_idx));
+            world.msg_char("They aren't here.", Recipient::Subject(char_idx));
             return Ok(());
         }
     };
@@ -124,9 +124,9 @@ pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
         let source_char_name = world.characters.get(char_idx).unwrap().formal_name().to_string();
         let target_char = world.characters.get_mut(target_idx).unwrap();
 
-        let char_message = format!("You give {} to {}.\r\n", obj.name(), target_char.formal_name());
-        let target_message = format!("{} gives you {}.\r\n", source_char_name, obj.name());
-        let room_message = format!("{} gives {} {}.\r\n", source_char_name, target_char.formal_name(), obj.name());
+        let char_message = format!("You give {} to {}.", obj.name(), target_char.formal_name());
+        let target_message = format!("{} gives you {}.", source_char_name, obj.name());
+        let room_message = format!("{} gives {} {}.", source_char_name, target_char.formal_name(), obj.name());
 
         target_char.inventory.push_front(obj);
 
@@ -134,7 +134,7 @@ pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
         world.msg_char(&target_message, Recipient::Subject(target_idx));
         world.msg_char(&room_message, Recipient::Neither(char_idx, target_idx, room_id));
     } else {
-        world.msg_char(&format!("You aren't holding any {} in your inventory.\r\n", object_keyword), Recipient::Subject(char_idx));
+        world.msg_char(&format!("You aren't holding any {} in your inventory.", object_keyword), Recipient::Subject(char_idx));
     }
 
     Ok(())

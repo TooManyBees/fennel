@@ -137,7 +137,7 @@ impl World {
                 }
                 None => {
                     let conn = &mut self.connections[pending.conn_idx];
-                    let _ = write!(conn, "I have no idea what that means!");
+                    let _ = write!(conn, "I have no idea what that means!\r\n");
                 }
             }
         }
@@ -184,6 +184,7 @@ impl World {
                     .and_then(|conn_idx| self.connections.get_mut(conn_idx))
                 {
                     let _ = Write::write(conn, message.as_bytes());
+                    let _ = Write::write(conn, b"\r\n");
                 } else {
                     log::warn!(
                         "Tried to send message to character without a connection: {:?}",
@@ -204,7 +205,8 @@ impl World {
                         .and_then(|char| char.connection())
                         .and_then(|conn_idx| self.connections.get_mut(conn_idx))
                     {
-                        let _ = Write::write_all(conn, message.as_bytes());
+                        let _ = Write::write(conn, message.as_bytes());
+                        let _ = Write::write(conn, b"\r\n");
                     } else {
                         log::warn!(
                             "Tried to send message to character without a connection: {:?}",
@@ -227,6 +229,7 @@ impl World {
                         .and_then(|conn_idx| self.connections.get_mut(conn_idx))
                     {
                         let _ = Write::write(conn, message.as_bytes());
+                        let _ = Write::write(conn, b"\r\n");
                     } else {
                         log::warn!(
                             "Tried to send message to character without a connection: {:?}",
@@ -245,6 +248,7 @@ impl World {
                         .and_then(|conn_idx| self.connections.get_mut(conn_idx))
                     {
                         let _ = Write::write(conn, message.as_bytes());
+                        let _ = Write::write(conn, b"\r\n");
                     } else {
                         log::warn!(
                             "Tried to send message to character without a connection: {:?}",

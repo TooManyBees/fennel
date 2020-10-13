@@ -34,7 +34,7 @@ pub fn inventory(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResu
         .expect("Unwrapped None character");
     write!(conn, "You are carrying:\r\n")?;
     for obj in &char.inventory {
-        write!(conn, "    {}", obj.name())?;
+        write!(conn, "    {}\r\n", obj.name())?;
     }
     Ok(())
 }

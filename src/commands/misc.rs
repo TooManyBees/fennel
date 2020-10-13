@@ -43,7 +43,7 @@ pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
 
             world.msg_char(
                 &format!(
-                    "{} flickers and fades as Reality takes {}.\r\n",
+                    "{} flickers and fades as Reality takes {}.",
                     formal_name,
                     pronoun.object()
                 ),

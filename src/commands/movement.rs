@@ -60,8 +60,8 @@ fn move_char(conn_idx: Index, direction: &str, world: &mut World) -> IoResult<()
         let to_room = world.rooms.get(&exit.to).expect("Unwrapped None room").id;
         let char_idx = conn.character;
 
-        let leave_msg = format!("{} leaves {}.\r\n", char_name, exit.dir.leaving());
-        let arrive_msg = format!("{} arrives from {}.\r\n", char_name, exit.dir.arriving());
+        let leave_msg = format!("{} leaves {}.", char_name, exit.dir.leaving());
+        let arrive_msg = format!("{} arrives from {}.", char_name, exit.dir.arriving());
 
         world.char_from_room(char_idx, from_room);
         world.msg_char(&leave_msg, Recipient::NotSubject(char_idx, from_room));
