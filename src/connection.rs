@@ -2,7 +2,7 @@ use generational_arena::Index;
 use std::io::{prelude::*, ErrorKind, Result as IoResult, Write};
 use std::net::{SocketAddr, TcpStream};
 
-use crate::Player;
+use crate::character::Player;
 use serde::export::fmt::Arguments;
 
 pub struct ConnectionBuilder {

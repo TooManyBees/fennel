@@ -1,4 +1,5 @@
 use crate::room::RoomId;
+use crate::util::find_item_by_keyword;
 use crate::world::World;
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
@@ -45,12 +46,14 @@ pub fn look_room(conn_idx: Index, room_id: RoomId, world: &mut World) -> IoResul
 pub fn look_at(conn_idx: Index, room_id: RoomId, target: &str, world: &mut World) -> IoResult<()> {
     let conn = world.connections.get_mut(conn_idx).unwrap();
     let chars_in_room;
+    let inventory;
     let objs_in_room;
     {
         chars_in_room = world
             .room_chars
             .get(&room_id)
             .expect("Unwrapped None room chars");
+        inventory = &world.characters.get(conn.character).expect("Unwrapped None character").inventory;
         objs_in_room = world
             .room_objs
             .get(&room_id)
@@ -72,11 +75,13 @@ pub fn look_at(conn_idx: Index, room_id: RoomId, target: &str, world: &mut World
             return Ok(());
         }
     }
-    if let Some(target) = objs_in_room
-        .iter()
-        .find(|obj| obj.keywords().iter().any(|kw| kw.starts_with(target)))
+    if let Some(obj) = find_item_by_keyword(inventory, target) {
+        write!(conn, "{}\r\n", obj.description())?;
+        return Ok(())
+    }
+    if let Some(obj) = find_item_by_keyword(objs_in_room, target)
     {
-        write!(conn, "{}\r\n", target.description())?;
+        write!(conn, "{}\r\n", obj.description())?;
     } else {
         write!(conn, "You don't see any {} here.\r\n", target)?;
     }

@@ -3,10 +3,11 @@ use femme::{self, LevelFilter};
 use log;
 use std::io::Write;
 use std::net::TcpListener;
+use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fennel::{listen, util, ConnectionBuilder, PlayerRecord, RoomId, World};
+use fennel::{listen, util, Character, ConnectionBuilder, PlayerRecord, RoomId, World};
 
 static PULSE_PER_SECOND: u32 = 3;
 static PULSE_RATE_NS: u32 = 1_000_000_000 / PULSE_PER_SECOND;
@@ -16,7 +17,7 @@ fn accept_new_connections(
     receiver: &Receiver<(ConnectionBuilder, PlayerRecord)>,
 ) {
     while let Ok((conn_builder, record)) = receiver.try_recv() {
-        let (player, char) = record.into_inner();
+        let (player, char_data, inventory) = record.into_inner();
 
         let conn = if let Some((conn_index, _existing_conn)) = world
             .connections
@@ -51,16 +52,21 @@ fn accept_new_connections(
                 player.name()
             );
 
+            let mut char = Character::from_data(char_data);
             // Ensure that the character's room still exists.
-            let mut char = char;
-            if world.rooms.get(&char.in_room).is_none() {
-                char.in_room = RoomId::default();
+            if world.rooms.get(&char.in_room()).is_none() {
+                char.set_in_room(RoomId::default());
+            }
+            for obj in inventory {
+                let obj = Rc::new(obj);
+                world.objects.push_back(Rc::clone(&obj));
+                char.inventory.push_back(obj);
             }
 
             // TODO: use world.char_to_room here for consistency
             let in_room = world
                 .room_chars
-                .get_mut(&char.in_room)
+                .get_mut(&char.in_room())
                 .expect("Unwrapped None room chars");
             let char_idx = world.characters.insert(char);
             world
@@ -79,7 +85,7 @@ fn accept_new_connections(
             .expect("Unwrapped None character");
         let conn_idx = world.connections.insert(conn);
         actual_char.set_connection(conn_idx);
-        let _ = util::look_room(conn_idx, actual_char.in_room, world);
+        let _ = util::look_room(conn_idx, actual_char.in_room(), world);
     }
 }
 

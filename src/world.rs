@@ -1,5 +1,5 @@
 use crate::area::Area;
-use crate::character::{CharId, Character};
+use crate::character::{CharId, Character, CharacterData};
 use crate::commands::{lookup_command, CommandFn};
 use crate::connection::Connection;
 use crate::object::{AllObjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter};
@@ -24,7 +24,7 @@ pub struct World {
     pub connections: Arena<Connection>,
     mark_for_disconnect: Vec<Index>,
     pub areas: Vec<Area>,
-    pub npc_defs: FnvHashMap<CharId, Character>,
+    pub npc_defs: FnvHashMap<CharId, CharacterData>,
     pub characters: Arena<Character>,
     pub object_defs: FnvHashMap<ObjectId, ObjectDef>,
     pub objects: LinkedList<AllObjectsAdapter>,
@@ -60,13 +60,14 @@ impl World {
     }
 
     pub fn populate(&mut self) {
-        for npc in self.npc_defs.values() {
-            let idx = self.characters.insert(npc.clone());
-            self.characters.get_mut(idx).map(|char| char.set_index(idx));
+        for npc_def in self.npc_defs.values() {
+            let npc = Character::from_data(npc_def.clone());
             let in_room = self
                 .room_chars
-                .get_mut(&npc.in_room)
+                .get_mut(&npc.in_room())
                 .expect("Unwrapped None room chars");
+            let idx = self.characters.insert(npc);
+            self.characters.get_mut(idx).map(|char| char.set_index(idx));
             in_room.push(idx);
         }
 
@@ -74,7 +75,7 @@ impl World {
         for room in self.rooms.values() {
             for id in &room.object_ids {
                 let obj = Rc::new(Object::from_prototype(&self.object_defs[id]));
-                self.objects.push_front(obj.clone());
+                self.objects.push_front(Rc::clone(&obj));
                 let in_room = self
                     .room_objs
                     .get_mut(&room.id)
@@ -91,7 +92,7 @@ impl World {
                     if let Some((command, rest)) = take_command(&input) {
                         let pending = PendingCommand {
                             conn_idx: idx,
-                            at_room: self.characters[conn.character].in_room,
+                            at_room: self.characters[conn.character].in_room(),
                             command: lookup_command(command),
                             arguments: rest.to_string(),
                         };
@@ -164,9 +165,9 @@ impl World {
             .characters
             .get_mut(char_idx)
             .expect("Unwrapped None character");
-        char.in_room = to_room;
+        char.set_in_room(to_room);
         // Add char index to new room
-        if let Some(in_room) = self.room_chars.get_mut(&char.in_room) {
+        if let Some(in_room) = self.room_chars.get_mut(&char.in_room()) {
             in_room.push(char_idx);
         } else {
             log::warn!("transfer_char: couldn't move to {}", to_room);
@@ -217,7 +218,7 @@ impl World {
                 for char_idx in self.room_chars[&room_id]
                     .clone()
                     .iter()
-                    .filter(|&&idx| idx != char_idx1 || idx != char_idx2)
+                    .filter(|&&idx| idx != char_idx1 && idx != char_idx2)
                 {
                     if let Some(conn) = self
                         .characters
@@ -266,7 +267,7 @@ pub enum Recipient {
 
 fn load_areas() -> (
     Vec<Area>,
-    FnvHashMap<CharId, Character>,
+    FnvHashMap<CharId, CharacterData>,
     FnvHashMap<ObjectId, ObjectDef>,
     FnvHashMap<RoomId, Room>,
 ) {
