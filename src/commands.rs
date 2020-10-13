@@ -79,7 +79,7 @@ const COMMANDS: &[(&'static str, CommandFn)] = &[
     ("drop", objects::drop),
     // ("eat", eat),
     // ("fill", fill),
-    // ("give", give),
+    ("give", objects::give),
     // ("hold", hold),
     // ("list", list),
     // ("lock", lock),

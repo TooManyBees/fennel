@@ -84,3 +84,58 @@ pub fn drop(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
     }
     Ok(())
 }
+
+pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+    let (object_keyword, arguments) = util::take_argument(arguments);
+    let (target_keyword, _) = util::take_argument(arguments);
+    let char_idx = world.connections.get(conn_idx).unwrap().character;
+    let room_id = world.characters.get(char_idx).unwrap().in_room();
+    let room_chars = world.room_chars.get(&room_id).unwrap();
+
+    let object_keyword = match object_keyword {
+        Some(kw) => kw,
+        None => {
+            world.msg_char("Give what to whom?\r\n", Recipient::Subject(char_idx));
+            return Ok(());
+        }
+    };
+    let target_keyword = match target_keyword {
+        Some(kw) => kw,
+        None => {
+            world.msg_char("Give it to whom?\r\n", Recipient::Subject(char_idx));
+            return Ok(());
+        }
+    };
+
+    let target_idx = room_chars.iter()
+        .filter_map(|idx| world.characters.get(*idx))
+        .find(|char| char.keywords().iter().any(|kw| kw.starts_with(target_keyword)))
+        .and_then(|char| char.index());
+
+    let target_idx = match target_idx {
+        Some(idx) => idx,
+        None => {
+            world.msg_char("They aren't here.\r\n", Recipient::Subject(char_idx));
+            return Ok(());
+        }
+    };
+
+    if let Some(obj) = util::pluck_item_from_list(&mut world.characters.get_mut(char_idx).unwrap().inventory, object_keyword) {
+        let source_char_name = world.characters.get(char_idx).unwrap().formal_name().to_string();
+        let target_char = world.characters.get_mut(target_idx).unwrap();
+
+        let char_message = format!("You give {} to {}.\r\n", obj.name(), target_char.formal_name());
+        let target_message = format!("{} gives you {}.\r\n", source_char_name, obj.name());
+        let room_message = format!("{} gives {} {}.\r\n", source_char_name, target_char.formal_name(), obj.name());
+
+        target_char.inventory.push_front(obj);
+
+        world.msg_char(&char_message, Recipient::Subject(char_idx));
+        world.msg_char(&target_message, Recipient::Subject(target_idx));
+        world.msg_char(&room_message, Recipient::Neither(char_idx, target_idx, room_id));
+    } else {
+        world.msg_char(&format!("You aren't holding any {} in your inventory.\r\n", object_keyword), Recipient::Subject(char_idx));
+    }
+
+    Ok(())
+}
