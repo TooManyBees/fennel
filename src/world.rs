@@ -218,7 +218,7 @@ impl World {
                 for char_idx in self.room_chars[&room_id]
                     .clone()
                     .iter()
-                    .filter(|&&idx| idx != char_idx1 || idx != char_idx2)
+                    .filter(|&&idx| idx != char_idx1 && idx != char_idx2)
                 {
                     if let Some(conn) = self
                         .characters
