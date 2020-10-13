@@ -1,10 +1,16 @@
 use crate::character::PlayerRecord;
+use crate::room::RoomId;
 use crate::util;
 use crate::world::{Recipient, World};
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
 
-pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn save(
+    conn_idx: Index,
+    _room_id: RoomId,
+    _arguments: &str,
+    world: &mut World,
+) -> IoResult<()> {
     let conn = world
         .connections
         .get_mut(conn_idx)
@@ -21,7 +27,12 @@ pub fn save(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()
     }
 }
 
-pub fn quit(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn quit(
+    conn_idx: Index,
+    _room_id: RoomId,
+    _arguments: &str,
+    world: &mut World,
+) -> IoResult<()> {
     let mut conn = world
         .connections
         .remove(conn_idx)

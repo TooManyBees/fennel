@@ -15,9 +15,8 @@ fn try_get(
     util::pluck_item_from_list(room_objs, keyword).ok_or("That isn't here.\r\n")
 }
 
-pub fn get(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn get(conn_idx: Index, room_id: RoomId, arguments: &str, world: &mut World) -> IoResult<()> {
     let char_idx = world.connections.get(conn_idx).unwrap().character;
-    let room_id = world.characters.get(char_idx).unwrap().in_room();
     let room_objs = world.room_objs.get_mut(&room_id).unwrap();
     match try_get(room_objs, arguments) {
         Ok(obj) => {
@@ -44,9 +43,9 @@ pub fn get(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> 
     Ok(())
 }
 
-pub fn take(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn take(conn_idx: Index, room_id: RoomId, arguments: &str, world: &mut World) -> IoResult<()> {
     // TODO: take is also to take from players
-    get(conn_idx, arguments, world)
+    get(conn_idx, room_id, arguments, world)
 }
 
 fn try_drop(
@@ -58,14 +57,13 @@ fn try_drop(
     util::pluck_item_from_list(inv, keyword).ok_or("You aren't carrying that.\r\n")
 }
 
-pub fn drop(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn drop(conn_idx: Index, room_id: RoomId, arguments: &str, world: &mut World) -> IoResult<()> {
     let char_idx = world.connections.get(conn_idx).unwrap().character;
     let char = world.characters.get_mut(char_idx).unwrap();
 
     match try_drop(&mut char.inventory, arguments) {
         Ok(obj) => {
             let char_name = char.formal_name().to_string();
-            let room_id = char.in_room();
             world.msg_char(
                 &format!("You drop {}.", obj.name()),
                 Recipient::Subject(char_idx),
@@ -85,11 +83,10 @@ pub fn drop(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()>
     Ok(())
 }
 
-pub fn give(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn give(conn_idx: Index, room_id: RoomId, arguments: &str, world: &mut World) -> IoResult<()> {
     let (object_keyword, arguments) = util::take_argument(arguments);
     let (target_keyword, _) = util::take_argument(arguments);
     let char_idx = world.connections.get(conn_idx).unwrap().character;
-    let room_id = world.characters.get(char_idx).unwrap().in_room();
     let room_chars = world.room_chars.get(&room_id).unwrap();
 
     let object_keyword = match object_keyword {

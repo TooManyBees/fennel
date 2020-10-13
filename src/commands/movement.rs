@@ -1,37 +1,48 @@
 use super::informational::look;
+use crate::room::RoomId;
 use crate::util;
 use crate::world::{Recipient, World};
 use generational_arena::Index;
 use std::io::{Result as IoResult, Write};
 
-pub fn north(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "north", world)
+pub fn north(
+    conn_idx: Index,
+    at_room: RoomId,
+    _arguments: &str,
+    world: &mut World,
+) -> IoResult<()> {
+    move_char(conn_idx, at_room, "north", world)
 }
 
-pub fn south(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "south", world)
+pub fn south(
+    conn_idx: Index,
+    at_room: RoomId,
+    _arguments: &str,
+    world: &mut World,
+) -> IoResult<()> {
+    move_char(conn_idx, at_room, "south", world)
 }
 
-pub fn east(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "east", world)
+pub fn east(conn_idx: Index, at_room: RoomId, _arguments: &str, world: &mut World) -> IoResult<()> {
+    move_char(conn_idx, at_room, "east", world)
 }
 
-pub fn west(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "west", world)
+pub fn west(conn_idx: Index, at_room: RoomId, _arguments: &str, world: &mut World) -> IoResult<()> {
+    move_char(conn_idx, at_room, "west", world)
 }
 
-pub fn up(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "up", world)
+pub fn up(conn_idx: Index, at_room: RoomId, _arguments: &str, world: &mut World) -> IoResult<()> {
+    move_char(conn_idx, at_room, "up", world)
 }
 
-pub fn down(conn_idx: Index, _arguments: &str, world: &mut World) -> IoResult<()> {
-    move_char(conn_idx, "down", world)
+pub fn down(conn_idx: Index, at_room: RoomId, _arguments: &str, world: &mut World) -> IoResult<()> {
+    move_char(conn_idx, at_room, "down", world)
 }
 
-pub fn go(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
+pub fn go(conn_idx: Index, at_room: RoomId, arguments: &str, world: &mut World) -> IoResult<()> {
     let (direction, _) = util::take_argument(arguments);
     match direction {
-        Some(direction) => move_char(conn_idx, direction, world),
+        Some(direction) => move_char(conn_idx, at_room, direction, world),
         None => {
             let conn = world.connections.get_mut(conn_idx).unwrap();
             write!(conn, "Go where?\r\n")
@@ -39,19 +50,19 @@ pub fn go(conn_idx: Index, arguments: &str, world: &mut World) -> IoResult<()> {
     }
 }
 
-fn move_char(conn_idx: Index, direction: &str, world: &mut World) -> IoResult<()> {
+fn move_char(conn_idx: Index, at_room: RoomId, direction: &str, world: &mut World) -> IoResult<()> {
     let conn = world
         .connections
         .get(conn_idx)
         .expect("Unwrapped None connection");
-    let (from_room, char_name) = {
-        let char = world
-            .characters
-            .get(conn.character)
-            .expect("Unwrapped None character");
+    let from_room = at_room;
+    let char_name = world
+        .characters
+        .get(conn.character)
+        .expect("Unwrapped None character")
+        .formal_name()
+        .to_string();
 
-        (char.in_room(), char.formal_name().to_string())
-    };
     if let Some(exit) = world
         .rooms
         .get(&from_room)
@@ -68,9 +79,7 @@ fn move_char(conn_idx: Index, direction: &str, world: &mut World) -> IoResult<()
         world.msg_char(&arrive_msg, Recipient::NotSubject(char_idx, to_room));
         world.char_to_room(char_idx, to_room);
 
-        // TODO: make a more fundamental "do_look" function that doesn't need to look up the room
-        // first (since we already have it)
-        look(conn_idx, "auto", world)?;
+        util::look_room(conn_idx, to_room, world)?;
     } else {
         let conn = world.connections.get_mut(conn_idx).unwrap();
         write!(conn, "You can't go that way.\r\n")?;

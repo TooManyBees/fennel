@@ -133,7 +133,7 @@ impl World {
         for pending in pending_commands {
             match pending.command {
                 Some(command) => {
-                    let _ = (command)(pending.conn_idx, &pending.arguments, self);
+                    let _ = (command)(pending.conn_idx, pending.at_room, &pending.arguments, self);
                 }
                 None => {
                     let conn = &mut self.connections[pending.conn_idx];

@@ -3,12 +3,13 @@ mod misc;
 mod movement;
 mod objects;
 
+use crate::room::RoomId;
 use crate::util;
 use crate::World;
 use generational_arena::Index;
 use std::io::Result as IoResult;
 
-pub type CommandFn = fn(Index, &str, &mut World) -> IoResult<()>;
+pub type CommandFn = fn(Index, RoomId, &str, &mut World) -> IoResult<()>;
 
 const COMMANDS: &[(&'static str, CommandFn)] = &[
     // Movement commands
