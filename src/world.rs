@@ -5,9 +5,10 @@ use crate::connection::Connection;
 use crate::object::{AllObjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter};
 use crate::room::{Room, RoomId};
 use crate::util::take_command;
-use fnv::FnvHashMap;
+use ahash::RandomState;
 use generational_arena::{Arena, Index};
 use intrusive_collections::LinkedList;
+use std::collections::HashMap;
 use std::default::Default;
 use std::io::{ErrorKind, Write};
 use std::rc::Rc;
@@ -24,13 +25,13 @@ pub struct World {
     pub connections: Arena<Connection>,
     mark_for_disconnect: Vec<Index>,
     pub areas: Vec<Area>,
-    pub npc_defs: FnvHashMap<CharId, CharacterData>,
+    pub npc_defs: HashMap<CharId, CharacterData, RandomState>,
     pub characters: Arena<Character>,
-    pub object_defs: FnvHashMap<ObjectId, ObjectDef>,
+    pub object_defs: HashMap<ObjectId, ObjectDef, RandomState>,
     pub objects: LinkedList<AllObjectsAdapter>,
-    pub rooms: FnvHashMap<RoomId, Room>,
-    pub room_chars: FnvHashMap<RoomId, Vec<Index>>, // Linked list?
-    pub room_objs: FnvHashMap<RoomId, LinkedList<ObjectInRoomAdapter>>,
+    pub rooms: HashMap<RoomId, Room, RandomState>,
+    pub room_chars: HashMap<RoomId, Vec<Index>, RandomState>, // Linked list?
+    pub room_objs: HashMap<RoomId, LinkedList<ObjectInRoomAdapter>, RandomState>,
     pending_commands: std::collections::LinkedList<PendingCommand>,
 }
 
@@ -38,9 +39,8 @@ impl World {
     pub fn new() -> World {
         let (areas, npc_defs, object_defs, rooms) = load_areas();
 
-        let mut room_chars: FnvHashMap<RoomId, Vec<Index>> = FnvHashMap::default();
-        let mut room_objs: FnvHashMap<RoomId, LinkedList<ObjectInRoomAdapter>> =
-            FnvHashMap::default();
+        let mut room_chars = HashMap::with_hasher(RandomState::new());
+        let mut room_objs = HashMap::with_hasher(RandomState::new());
         for key in rooms.keys() {
             room_chars.insert(*key, vec![]);
             room_objs.insert(*key, Default::default());
@@ -271,15 +271,15 @@ pub enum Recipient {
 
 fn load_areas() -> (
     Vec<Area>,
-    FnvHashMap<CharId, CharacterData>,
-    FnvHashMap<ObjectId, ObjectDef>,
-    FnvHashMap<RoomId, Room>,
+    HashMap<CharId, CharacterData, RandomState>,
+    HashMap<ObjectId, ObjectDef, RandomState>,
+    HashMap<RoomId, Room, RandomState>,
 ) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
-    let mut rooms = FnvHashMap::default();
-    let mut object_defs = FnvHashMap::default();
-    let mut npcs = FnvHashMap::default();
+    let mut rooms = HashMap::with_hasher(RandomState::new());
+    let mut object_defs = HashMap::with_hasher(RandomState::new());
+    let mut npcs = HashMap::with_hasher(RandomState::new());
     // FIXME: daaaaaaang this is ugly
     // TODO: we're gonna iterate over every area name in some text file, rather than load a single area
     match Area::load("default") {
@@ -322,7 +322,7 @@ fn load_areas() -> (
     (areas, npcs, object_defs, rooms)
 }
 
-fn audit_room_exits(rooms: &mut FnvHashMap<RoomId, Room>) {
+fn audit_room_exits(rooms: &mut HashMap<RoomId, Room, RandomState>) {
     // I should be able to do this in a single iteration of room.values_mut(),
     // and I'm angry that I can't.
     let mut destinations_to_remove = vec![];
