@@ -48,21 +48,21 @@ mod test {
 
     #[test]
     fn find_exact_command() {
-        assert_eq!(Some(&North), find_partial(COMMANDS, "north"));
+        assert_eq!(Some(&North), find_partial(COMMANDS.iter().map(|(k, v)| (k, v)), "north"));
     }
 
     #[test]
     fn prioritize_earlier_matches() {
-        assert_eq!(Some(&North), find_partial(COMMANDS, "no"));
+        assert_eq!(Some(&North), find_partial(COMMANDS.iter().map(|(k, v)| (k, v)), "no"));
     }
 
     #[test]
     fn prioritize_exact_matches() {
-        assert_eq!(Some(&Throw), find_partial(COMMANDS, "throw"));
+        assert_eq!(Some(&Throw), find_partial(COMMANDS.iter().map(|(k, v)| (k, v)), "throw"));
     }
 
     #[test]
     fn find_partial_match() {
-        assert_eq!(Some(&There), find_partial(COMMANDS, "the"));
+        assert_eq!(Some(&There), find_partial(COMMANDS.iter().map(|(k, v)| (k, v)), "the"));
     }
 }
