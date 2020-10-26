@@ -4,7 +4,7 @@ use crate::commands::{lookup_command, CommandFn};
 use crate::connection::Connection;
 use crate::object::{AllObjectsAdapter, Object, ObjectDef, ObjectId, ObjectInRoomAdapter};
 use crate::room::{Room, RoomId};
-use crate::util::take_command;
+use crate::util::{char_from_room, char_to_room, take_command, FromRoomError, ToRoomError};
 use ahash::RandomState;
 use generational_arena::{Arena, Index};
 use intrusive_collections::LinkedList;
@@ -154,19 +154,16 @@ impl World {
     }
 
     pub fn char_from_room(&mut self, char_idx: Index, from_room: RoomId) {
-        let in_room = self
-            .room_chars
-            .get_mut(&from_room)
-            .expect("Unwrapped None room chars");
-        if let Some(i) = in_room
-            .iter()
-            .enumerate()
-            .find(|(_, idx)| **idx == char_idx)
-            .map(|(i, _)| i)
-        {
-            in_room.remove(i);
-        } else {
-            log::warn!("transfer_char: couldn't remove char from {}", from_room);
+        match char_from_room(from_room, char_idx, &mut self.room_chars) {
+            Err(FromRoomError::NoSuchRoom(id)) => {
+                log::warn!("move char failed: no such room {}", id)
+            }
+            Err(FromRoomError::CharNotInRoom(idx, room_id)) => log::warn!(
+                "move char idx {:?} failed: was not in room char.in_room {}",
+                idx,
+                room_id,
+            ),
+            Ok(()) => {}
         }
     }
 
@@ -175,12 +172,10 @@ impl World {
             .characters
             .get_mut(char_idx)
             .expect("Unwrapped None character");
-        char.set_in_room(to_room);
-        // Add char index to new room
-        if let Some(in_room) = self.room_chars.get_mut(&char.in_room()) {
-            in_room.push(char_idx);
-        } else {
-            log::warn!("transfer_char: couldn't move to {}", to_room);
+
+        match char_to_room(to_room, char, &mut self.room_chars) {
+            Err(ToRoomError::NoSuchRoom(id)) => log::warn!("move char failed: no such room {}", id),
+            Ok(()) => {}
         }
     }
 
