@@ -18,4 +18,4 @@ pub use object::{
     ObjectType,
 };
 pub use room::{Exit, Room, RoomId};
-pub use world::World;
+pub use world::*;

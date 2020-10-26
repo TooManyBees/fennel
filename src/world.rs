@@ -20,18 +20,28 @@ pub struct PendingCommand {
     arguments: String,
 }
 
+pub type Connections = Arena<Connection>;
+pub type Areas = Vec<Area>;
+pub type NpcDefs = HashMap<CharId, CharacterData, RandomState>;
+pub type Characters = Arena<Character>;
+pub type ObjectDefs = HashMap<ObjectId, ObjectDef, RandomState>;
+pub type Objects = LinkedList<AllObjectsAdapter>;
+pub type Rooms = HashMap<RoomId, Room, RandomState>;
+pub type RoomChars = HashMap<RoomId, Vec<Index>, RandomState>;
+pub type RoomObjs = HashMap<RoomId, LinkedList<ObjectInRoomAdapter>, RandomState>;
+
 #[derive(Default)]
 pub struct World {
-    pub connections: Arena<Connection>,
+    pub connections: Connections,
     mark_for_disconnect: Vec<Index>,
-    pub areas: Vec<Area>,
-    pub npc_defs: HashMap<CharId, CharacterData, RandomState>,
-    pub characters: Arena<Character>,
-    pub object_defs: HashMap<ObjectId, ObjectDef, RandomState>,
-    pub objects: LinkedList<AllObjectsAdapter>,
-    pub rooms: HashMap<RoomId, Room, RandomState>,
-    pub room_chars: HashMap<RoomId, Vec<Index>, RandomState>, // Linked list?
-    pub room_objs: HashMap<RoomId, LinkedList<ObjectInRoomAdapter>, RandomState>,
+    pub areas: Areas,
+    pub npc_defs: NpcDefs,
+    pub characters: Characters,
+    pub object_defs: ObjectDefs,
+    pub objects: Objects,
+    pub rooms: Rooms,
+    pub room_chars: RoomChars, // Linked list?
+    pub room_objs: RoomObjs,
     pending_commands: std::collections::LinkedList<PendingCommand>,
 }
 
@@ -269,12 +279,7 @@ pub enum Recipient {
     All(RoomId),
 }
 
-fn load_areas() -> (
-    Vec<Area>,
-    HashMap<CharId, CharacterData, RandomState>,
-    HashMap<ObjectId, ObjectDef, RandomState>,
-    HashMap<RoomId, Room, RandomState>,
-) {
+fn load_areas() -> (Areas, NpcDefs, ObjectDefs, Rooms) {
     log::info!("Loading areas");
     let mut areas = Vec::new();
     let mut rooms = HashMap::with_hasher(RandomState::new());
@@ -322,7 +327,7 @@ fn load_areas() -> (
     (areas, npcs, object_defs, rooms)
 }
 
-fn audit_room_exits(rooms: &mut HashMap<RoomId, Room, RandomState>) {
+fn audit_room_exits(rooms: &mut Rooms) {
     // I should be able to do this in a single iteration of room.values_mut(),
     // and I'm angry that I can't.
     let mut destinations_to_remove = vec![];
